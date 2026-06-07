@@ -1,0 +1,58 @@
+@import 'tailwindcss';
+
+@theme {
+  --font-sans: 'Inter', system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
+  --font-display: 'Fraunces', Georgia, 'Times New Roman', serif;
+
+  /* Borough brand — a warm, appetising flame orange */
+  --color-brand-50: #fff5ed;
+  --color-brand-100: #ffe9d5;
+  --color-brand-200: #fed0aa;
+  --color-brand-300: #fdb074;
+  --color-brand-400: #fb8a3c;
+  --color-brand-500: #f96a16;
+  --color-brand-600: #ea5009;
+  --color-brand-700: #c23a0a;
+  --color-brand-800: #9a3010;
+  --color-brand-900: #7c2a11;
+
+  /* Deep plum for accents/headers in the blended look */
+  --color-plum-600: #6d2b6b;
+  --color-plum-700: #5a2359;
+}
+
+@layer base {
+  html {
+    -webkit-text-size-adjust: 100%;
+    scroll-behavior: smooth;
+  }
+
+  body {
+    @apply bg-stone-50 text-stone-700 antialiased;
+    font-family: var(--font-sans);
+  }
+
+  h1,
+  h2,
+  h3,
+  h4 {
+    @apply text-stone-900;
+    text-wrap: balance;
+  }
+}
+
+/* Hide scrollbars on horizontal carousels while keeping scroll */
+@utility no-scrollbar {
+  &::-webkit-scrollbar {
+    display: none;
+  }
+  -ms-overflow-style: none;
+  scrollbar-width: none;
+}
+
+/* Reusable elevation for cards */
+@utility card-shadow {
+  box-shadow:
+    0 1px 2px rgba(28, 25, 23, 0.04),
+    0 4px 16px rgba(28, 25, 23, 0.06);
+}

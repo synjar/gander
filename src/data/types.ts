@@ -1,0 +1,164 @@
+export type CategoryId =
+  | 'restaurants'
+  | 'cafes'
+  | 'bars'
+  | 'salons'
+  | 'gyms'
+  | 'spas'
+  | 'hotels'
+
+export interface Category {
+  id: CategoryId
+  label: string
+  /** lucide-react icon name */
+  icon: string
+  emoji: string
+  blurb: string
+}
+
+export interface OpeningHours {
+  day: string
+  open: string
+  close: string
+}
+
+export interface Dish {
+  name: string
+  price: number
+  description?: string
+}
+
+export interface Business {
+  id: string
+  slug: string
+  name: string
+  category: CategoryId
+  cuisine?: string
+  tags: string[]
+  rating: number
+  reviewCount: number
+  priceLevel: 1 | 2 | 3 | 4
+  neighbourhood: string
+  city: string
+  cityId: string
+  address: string
+  postcode: string
+  phone: string
+  website?: string
+  heroImage: string
+  images: string[]
+  shortDescription: string
+  description: string
+  hours: OpeningHours[]
+  openNow: boolean
+  amenities: string[]
+  scores: { food: number; service: number; ambience: number; value: number }
+  lat: number
+  lng: number
+  bookable: boolean
+  delivers: boolean
+  popularDishes?: Dish[]
+  rank?: number
+  featured?: boolean
+}
+
+export interface Review {
+  id: string
+  businessId: string
+  authorId: string
+  authorName: string
+  authorAvatar: string
+  authorLevel: number
+  rating: number
+  food?: number
+  service?: number
+  ambience?: number
+  value?: number
+  date: string
+  title?: string
+  body: string
+  photos: string[]
+  likes: number
+  visitType?: string
+}
+
+export interface Deal {
+  id: string
+  businessId: string
+  title: string
+  description: string
+  originalPrice: number
+  dealPrice: number
+  sold: number
+  image: string
+  tag?: string
+  expires: string
+}
+
+export interface User {
+  id: string
+  name: string
+  avatar: string
+  level: number
+  points: number
+  bio: string
+  joined: string
+  neighbourhood: string
+  reviewCount: number
+  photoCount: number
+  followerCount: number
+  followingCount: number
+}
+
+export type FeedType = 'review' | 'checkin' | 'photo' | 'list'
+
+export interface FeedPost {
+  id: string
+  userId: string
+  userName: string
+  userAvatar: string
+  userLevel: number
+  type: FeedType
+  businessId: string
+  businessName: string
+  neighbourhood: string
+  rating?: number
+  text: string
+  photos: string[]
+  likes: number
+  comments: number
+  time: string
+}
+
+export interface Booking {
+  id: string
+  businessId: string
+  businessName: string
+  date: string
+  time: string
+  partySize: number
+  occasion?: string
+  status: 'confirmed' | 'cancelled'
+  createdAt: number
+}
+
+export interface Voucher {
+  id: string
+  dealId: string
+  businessId: string
+  businessName: string
+  title: string
+  dealPrice: number
+  code: string
+  purchasedAt: number
+  redeemed: boolean
+}
+
+export interface Order {
+  id: string
+  businessId: string
+  businessName: string
+  total: number
+  items: number
+  createdAt: number
+}

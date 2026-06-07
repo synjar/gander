@@ -1,0 +1,194 @@
+-- ============================================================================
+-- Gander — Supabase schema
+-- Paste this into the Supabase SQL editor (Database → SQL editor → New query)
+-- and run it once to set up the backend. Safe to re-run.
+-- ============================================================================
+
+-- Profiles -------------------------------------------------------------------
+create table if not exists public.profiles (
+  id uuid primary key references auth.users on delete cascade,
+  name text not null default 'Guest',
+  avatar text,
+  level int not null default 1,
+  points int not null default 0,
+  neighbourhood text,
+  bio text,
+  created_at timestamptz not null default now()
+);
+
+alter table public.profiles enable row level security;
+
+drop policy if exists "Profiles are viewable by everyone" on public.profiles;
+create policy "Profiles are viewable by everyone"
+  on public.profiles for select using (true);
+
+drop policy if exists "Users can update own profile" on public.profiles;
+create policy "Users can update own profile"
+  on public.profiles for update using (auth.uid() = id);
+
+-- Create a profile automatically when a user signs up
+create or replace function public.handle_new_user()
+returns trigger language plpgsql security definer set search_path = public as $$
+begin
+  insert into public.profiles (id, name, avatar)
+  values (
+    new.id,
+    coalesce(new.raw_user_meta_data ->> 'name', split_part(new.email, '@', 1)),
+    new.raw_user_meta_data ->> 'avatar'
+  )
+  on conflict (id) do nothing;
+  return new;
+end;
+$$;
+
+drop trigger if exists on_auth_user_created on auth.users;
+create trigger on_auth_user_created
+  after insert on auth.users
+  for each row execute procedure public.handle_new_user();
+
+-- Reviews --------------------------------------------------------------------
+create table if not exists public.reviews (
+  id uuid primary key default gen_random_uuid(),
+  business_id text not null,
+  author_id uuid not null references public.profiles (id) on delete cascade,
+  rating int not null check (rating between 1 and 5),
+  food int, service int, ambience int, value int,
+  title text,
+  body text not null,
+  photos text[] not null default '{}',
+  visit_type text,
+  created_at timestamptz not null default now()
+);
+
+alter table public.reviews enable row level security;
+
+drop policy if exists "Reviews are viewable by everyone" on public.reviews;
+create policy "Reviews are viewable by everyone"
+  on public.reviews for select using (true);
+
+drop policy if exists "Users manage own reviews" on public.reviews;
+create policy "Users manage own reviews"
+  on public.reviews for all using (auth.uid() = author_id) with check (auth.uid() = author_id);
+
+-- Favourites -----------------------------------------------------------------
+create table if not exists public.favourites (
+  user_id uuid not null references auth.users on delete cascade,
+  business_id text not null,
+  created_at timestamptz not null default now(),
+  primary key (user_id, business_id)
+);
+
+alter table public.favourites enable row level security;
+
+drop policy if exists "Users manage own favourites" on public.favourites;
+create policy "Users manage own favourites"
+  on public.favourites for all using (auth.uid() = user_id) with check (auth.uid() = user_id);
+
+-- Bookings -------------------------------------------------------------------
+create table if not exists public.bookings (
+  id uuid primary key default gen_random_uuid(),
+  user_id uuid not null references auth.users on delete cascade,
+  business_id text not null,
+  business_name text not null,
+  date date not null,
+  "time" text not null,
+  party_size int not null,
+  occasion text,
+  status text not null default 'confirmed',
+  created_at timestamptz not null default now()
+);
+
+alter table public.bookings enable row level security;
+
+drop policy if exists "Users manage own bookings" on public.bookings;
+create policy "Users manage own bookings"
+  on public.bookings for all using (auth.uid() = user_id) with check (auth.uid() = user_id);
+
+-- Vouchers -------------------------------------------------------------------
+create table if not exists public.vouchers (
+  id uuid primary key default gen_random_uuid(),
+  user_id uuid not null references auth.users on delete cascade,
+  deal_id text not null,
+  business_id text not null,
+  business_name text not null,
+  title text not null,
+  deal_price numeric not null,
+  code text not null,
+  redeemed boolean not null default false,
+  created_at timestamptz not null default now()
+);
+
+alter table public.vouchers enable row level security;
+
+drop policy if exists "Users manage own vouchers" on public.vouchers;
+create policy "Users manage own vouchers"
+  on public.vouchers for all using (auth.uid() = user_id) with check (auth.uid() = user_id);
+
+-- Merchant: owner responses to reviews --------------------------------------
+create table if not exists public.review_responses (
+  review_id uuid primary key references public.reviews on delete cascade,
+  owner_id uuid not null references auth.users on delete cascade,
+  body text not null,
+  created_at timestamptz not null default now()
+);
+
+alter table public.review_responses enable row level security;
+
+drop policy if exists "Responses are viewable by everyone" on public.review_responses;
+create policy "Responses are viewable by everyone"
+  on public.review_responses for select using (true);
+
+drop policy if exists "Owners manage own responses" on public.review_responses;
+create policy "Owners manage own responses"
+  on public.review_responses for all using (auth.uid() = owner_id) with check (auth.uid() = owner_id);
+
+-- Merchant: deals created by owners -----------------------------------------
+create table if not exists public.merchant_deals (
+  id uuid primary key default gen_random_uuid(),
+  owner_id uuid not null references auth.users on delete cascade,
+  business_id text not null,
+  title text not null,
+  description text,
+  original_price numeric not null,
+  deal_price numeric not null,
+  tag text,
+  sold int not null default 0,
+  image text,
+  expires text,
+  created_at timestamptz not null default now()
+);
+
+alter table public.merchant_deals enable row level security;
+
+drop policy if exists "Merchant deals are viewable by everyone" on public.merchant_deals;
+create policy "Merchant deals are viewable by everyone"
+  on public.merchant_deals for select using (true);
+
+drop policy if exists "Owners manage own deals" on public.merchant_deals;
+create policy "Owners manage own deals"
+  on public.merchant_deals for all using (auth.uid() = owner_id) with check (auth.uid() = owner_id);
+
+-- Realtime -------------------------------------------------------------------
+-- Broadcast changes so reviews, deals and owner responses appear live.
+do $$ begin
+  alter publication supabase_realtime add table public.reviews;
+exception when duplicate_object then null; end $$;
+do $$ begin
+  alter publication supabase_realtime add table public.merchant_deals;
+exception when duplicate_object then null; end $$;
+do $$ begin
+  alter publication supabase_realtime add table public.review_responses;
+exception when duplicate_object then null; end $$;
+
+-- Storage: public 'photos' bucket for review & venue images ------------------
+insert into storage.buckets (id, name, public)
+values ('photos', 'photos', true)
+on conflict (id) do nothing;
+
+drop policy if exists "Public read photos" on storage.objects;
+create policy "Public read photos"
+  on storage.objects for select using (bucket_id = 'photos');
+
+drop policy if exists "Authenticated upload photos" on storage.objects;
+create policy "Authenticated upload photos"
+  on storage.objects for insert to authenticated with check (bucket_id = 'photos');
