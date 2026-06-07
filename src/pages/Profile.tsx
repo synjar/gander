@@ -75,9 +75,23 @@ export default function Profile() {
   const myReviews = allReviews.filter((r) => r.authorId === 'me')
   const saved = favourites.map((id) => businessesById[id]).filter(Boolean)
 
+  const isRealUser = configured && !user.isGuest
+  const profile = isRealUser
+    ? {
+        level: Math.max(1, Math.floor(myReviews.length / 3) + 1),
+        points: myReviews.length * 200,
+        neighbourhood: '',
+        joined: 'recently',
+        bio: '',
+        photoCount: 0,
+        followerCount: 0,
+        followingCount: 0,
+      }
+    : currentUser
+
   const band = 2000
-  const toNext = band - (currentUser.points % band)
-  const progress = ((currentUser.points % band) / band) * 100
+  const toNext = band - (profile.points % band)
+  const progress = ((profile.points % band) / band) * 100
 
   const tabs: { id: Tab; label: string; count: number }[] = [
     { id: 'reviews', label: 'Reviews', count: myReviews.length },
@@ -105,10 +119,11 @@ export default function Profile() {
                 <h1 className="font-display text-2xl font-semibold text-stone-900">
                   {user.name}
                 </h1>
-                <LevelBadge level={currentUser.level} />
+                <LevelBadge level={profile.level} />
               </div>
               <p className="flex items-center gap-1 text-sm text-stone-500">
-                <MapPin size={13} /> {currentUser.neighbourhood} · Joined {currentUser.joined}
+                <MapPin size={13} />
+                {profile.neighbourhood ? `${profile.neighbourhood} · ` : ''}Joined {profile.joined}
               </p>
               {user.email && <p className="text-sm text-stone-400">{user.email}</p>}
             </div>
@@ -127,25 +142,25 @@ export default function Profile() {
           )}
         </div>
 
-        <p className="mt-4 max-w-xl text-stone-600">{currentUser.bio}</p>
+        {profile.bio && <p className="mt-4 max-w-xl text-stone-600">{profile.bio}</p>}
 
         {/* Stats */}
         <div className="mt-5 flex items-center gap-6">
           <Stat value={myReviews.length} label="Reviews" />
-          <Stat value={currentUser.photoCount} label="Photos" />
-          <Stat value={currentUser.followerCount} label="Followers" />
-          <Stat value={currentUser.followingCount} label="Following" />
+          <Stat value={profile.photoCount} label="Photos" />
+          <Stat value={profile.followerCount} label="Followers" />
+          <Stat value={profile.followingCount} label="Following" />
         </div>
 
         {/* Level progress */}
         <div className="mt-5 rounded-2xl border border-stone-200 bg-white p-4">
           <div className="flex items-center justify-between text-sm">
             <span className="flex items-center gap-1.5 font-semibold text-stone-900">
-              <Award size={16} className="text-brand-500" /> Level {currentUser.level} reviewer
+              <Award size={16} className="text-brand-500" /> Level {profile.level} reviewer
             </span>
             <span className="text-stone-500">
-              {currentUser.points.toLocaleString('en-GB')} pts ·{' '}
-              <span className="font-medium text-brand-600">{toNext} to Level {currentUser.level + 1}</span>
+              {profile.points.toLocaleString('en-GB')} pts ·{' '}
+              <span className="font-medium text-brand-600">{toNext} to Level {profile.level + 1}</span>
             </span>
           </div>
           <div className="mt-2 h-2 rounded-full bg-stone-100">
