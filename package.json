@@ -10,6 +10,8 @@
     "preview": "vite preview"
   },
   "dependencies": {
+    "@stripe/react-stripe-js": "^6.6.0",
+    "@stripe/stripe-js": "^9.7.0",
     "@supabase/supabase-js": "^2.107.0",
     "clsx": "^2.1.1",
     "leaflet": "^1.9.4",
@@ -17,7 +19,8 @@
     "react": "^19.2.6",
     "react-dom": "^19.2.6",
     "react-leaflet": "^5.0.0",
-    "react-router-dom": "^7.17.0"
+    "react-router-dom": "^7.17.0",
+    "stripe": "^22.2.0"
   },
   "devDependencies": {
     "@eslint/js": "^10.0.1",
@@ -26,6 +29,7 @@
     "@types/node": "^24.12.3",
     "@types/react": "^19.2.14",
     "@types/react-dom": "^19.2.3",
+    "@vercel/node": "^5.8.12",
     "@vitejs/plugin-react": "^6.0.1",
     "eslint": "^10.3.0",
     "eslint-plugin-react-hooks": "^7.1.1",

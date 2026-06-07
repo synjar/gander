@@ -1,6 +1,19 @@
-import { useState, type FormEvent } from 'react'
+import { useEffect, useState, type FormEvent } from 'react'
+import { loadStripe } from '@stripe/stripe-js'
+import { Elements, PaymentElement, useStripe, useElements } from '@stripe/react-stripe-js'
 import { CreditCard, Loader2, Lock } from 'lucide-react'
 import { formatPrice } from '../lib/format'
+
+const PK = import.meta.env.VITE_STRIPE_PUBLISHABLE_KEY as string | undefined
+const stripePromise = PK ? loadStripe(PK) : null
+
+interface Props {
+  amount: number
+  onPaid: () => void
+  onCancel?: () => void
+}
+
+// ---- Mock form used in demo / local dev (no Stripe key configured) ----------
 
 function detectBrand(digits: string): string {
   if (/^4/.test(digits)) return 'Visa'
@@ -10,13 +23,7 @@ function detectBrand(digits: string): string {
   return ''
 }
 
-interface Props {
-  amount: number
-  onPaid: () => void
-  onCancel?: () => void
-}
-
-export default function PaymentForm({ amount, onPaid, onCancel }: Props) {
+function MockForm({ amount, onPaid, onCancel }: Props) {
   const [number, setNumber] = useState('')
   const [exp, setExp] = useState('')
   const [cvc, setCvc] = useState('')
@@ -39,14 +46,10 @@ export default function PaymentForm({ amount, onPaid, onCancel }: Props) {
   function pay(e: FormEvent) {
     e.preventDefault()
     setProcessing(true)
-    window.setTimeout(() => {
-      setProcessing(false)
-      onPaid()
-    }, 1500)
+    window.setTimeout(() => { setProcessing(false); onPaid() }, 1500)
   }
 
-  const field =
-    'w-full rounded-xl border border-stone-200 px-3.5 py-2.5 text-sm outline-none focus:border-brand-400 focus:ring-2 focus:ring-brand-100'
+  const field = 'w-full rounded-xl border border-stone-200 px-3.5 py-2.5 text-sm outline-none focus:border-brand-400 focus:ring-2 focus:ring-brand-100'
 
   return (
     <form onSubmit={pay} className="space-y-3">
@@ -54,89 +57,129 @@ export default function PaymentForm({ amount, onPaid, onCancel }: Props) {
         <p className="text-xs text-stone-500">Amount to pay</p>
         <p className="font-display text-2xl font-semibold text-stone-900">{formatPrice(amount)}</p>
       </div>
-
       <label className="block text-sm font-medium text-stone-700">
         Card number
         <div className="relative mt-1">
           <CreditCard size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-stone-400" />
-          <input
-            value={number}
-            onChange={(e) => onNumber(e.target.value)}
-            placeholder="4242 4242 4242 4242"
-            inputMode="numeric"
-            className={field + ' pl-9'}
-            required
-          />
-          {brand && (
-            <span className="absolute right-3 top-1/2 -translate-y-1/2 text-xs font-semibold text-stone-500">
-              {brand}
-            </span>
-          )}
+          <input value={number} onChange={(e) => onNumber(e.target.value)} placeholder="4242 4242 4242 4242" inputMode="numeric" className={field + ' pl-9'} required />
+          {brand && <span className="absolute right-3 top-1/2 -translate-y-1/2 text-xs font-semibold text-stone-500">{brand}</span>}
         </div>
       </label>
-
       <div className="grid grid-cols-2 gap-3">
         <label className="block text-sm font-medium text-stone-700">
           Expiry
-          <input
-            value={exp}
-            onChange={(e) => onExp(e.target.value)}
-            placeholder="MM/YY"
-            inputMode="numeric"
-            className={field + ' mt-1'}
-            required
-          />
+          <input value={exp} onChange={(e) => onExp(e.target.value)} placeholder="MM/YY" inputMode="numeric" className={field + ' mt-1'} required />
         </label>
         <label className="block text-sm font-medium text-stone-700">
           CVC
-          <input
-            value={cvc}
-            onChange={(e) => setCvc(e.target.value.replace(/\D/g, '').slice(0, 4))}
-            placeholder="123"
-            inputMode="numeric"
-            className={field + ' mt-1'}
-            required
-          />
+          <input value={cvc} onChange={(e) => setCvc(e.target.value.replace(/\D/g, '').slice(0, 4))} placeholder="123" inputMode="numeric" className={field + ' mt-1'} required />
         </label>
       </div>
-
       <label className="block text-sm font-medium text-stone-700">
         Name on card
-        <input
-          value={name}
-          onChange={(e) => setName(e.target.value)}
-          placeholder="A. Morgan"
-          className={field + ' mt-1'}
-          required
-        />
+        <input value={name} onChange={(e) => setName(e.target.value)} placeholder="A. Morgan" className={field + ' mt-1'} required />
       </label>
-
-      <button
-        type="submit"
-        disabled={!valid || processing}
-        className="flex w-full items-center justify-center gap-2 rounded-full bg-brand-500 py-3 text-sm font-semibold text-white transition enabled:hover:bg-brand-600 disabled:cursor-not-allowed disabled:opacity-40"
-      >
-        {processing ? (
-          <>
-            <Loader2 size={16} className="animate-spin" /> Processing…
-          </>
-        ) : (
-          <>Pay {formatPrice(amount)}</>
-        )}
+      <button type="submit" disabled={!valid || processing} className="flex w-full items-center justify-center gap-2 rounded-full bg-brand-500 py-3 text-sm font-semibold text-white transition enabled:hover:bg-brand-600 disabled:cursor-not-allowed disabled:opacity-40">
+        {processing ? <><Loader2 size={16} className="animate-spin" /> Processing…</> : <>Pay {formatPrice(amount)}</>}
       </button>
-
       <p className="flex items-center justify-center gap-1.5 text-xs text-stone-400">
         <Lock size={12} /> Test mode — enter any details. No real charge is made.
       </p>
-      {onCancel && (
-        <button
-          type="button"
-          onClick={onCancel}
-          className="w-full text-xs font-medium text-stone-500 hover:text-stone-800"
-        >
-          Back
-        </button>
-      )}
+      {onCancel && <button type="button" onClick={onCancel} className="w-full text-xs font-medium text-stone-500 hover:text-stone-800">Back</button>}
     </form>
+  )
+}
+
+// ---- Real Stripe inner form -------------------------------------------------
+
+function StripeForm({ amount, onPaid, onCancel }: Props) {
+  const stripe = useStripe()
+  const elements = useElements()
+  const [error, setError] = useState<string | null>(null)
+  const [processing, setProcessing] = useState(false)
+
+  async function handleSubmit(e: FormEvent) {
+    e.preventDefault()
+    if (!stripe || !elements) return
+    setProcessing(true)
+    setError(null)
+
+    const { error: submitError } = await elements.submit()
+    if (submitError) {
+      setError(submitError.message ?? 'Something went wrong.')
+      setProcessing(false)
+      return
+    }
+
+    const result = await stripe.confirmPayment({
+      elements,
+      confirmParams: { return_url: window.location.href },
+      redirect: 'if_required',
+    })
+
+    if (result.error) {
+      setError(result.error.message ?? 'Payment failed.')
+      setProcessing(false)
+    } else {
+      onPaid()
+    }
+  }
+
+  return (
+    <form onSubmit={handleSubmit} className="space-y-4">
+      <div className="rounded-xl bg-stone-50 p-3 text-center">
+        <p className="text-xs text-stone-500">Amount to pay</p>
+        <p className="font-display text-2xl font-semibold text-stone-900">{formatPrice(amount)}</p>
+      </div>
+      <PaymentElement />
+      {error && <p className="text-sm text-red-600">{error}</p>}
+      <button
+        type="submit"
+        disabled={!stripe || processing}
+        className="flex w-full items-center justify-center gap-2 rounded-full bg-brand-500 py-3 text-sm font-semibold text-white transition enabled:hover:bg-brand-600 disabled:cursor-not-allowed disabled:opacity-40"
+      >
+        {processing ? <><Loader2 size={16} className="animate-spin" /> Processing…</> : <>Pay {formatPrice(amount)}</>}
+      </button>
+      <p className="flex items-center justify-center gap-1.5 text-xs text-stone-400">
+        <Lock size={12} /> Secured by Stripe
+      </p>
+      {onCancel && <button type="button" onClick={onCancel} className="w-full text-xs font-medium text-stone-500 hover:text-stone-800">Back</button>}
+    </form>
+  )
+}
+
+// ---- Outer wrapper: fetches client_secret then renders Elements -------------
+
+export default function PaymentForm({ amount, onPaid, onCancel }: Props) {
+  const [clientSecret, setClientSecret] = useState<string | null>(null)
+  const [fetchError, setFetchError] = useState<string | null>(null)
+
+  useEffect(() => {
+    if (!stripePromise) return
+    fetch('/api/create-payment-intent', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ amount }),
+    })
+      .then((r) => r.json() as Promise<{ clientSecret: string }>)
+      .then(({ clientSecret }) => setClientSecret(clientSecret))
+      .catch(() => setFetchError('Could not connect to payment service.'))
+  }, [amount])
+
+  if (!stripePromise) return <MockForm amount={amount} onPaid={onPaid} onCancel={onCancel} />
+
+  if (fetchError) return <p className="py-4 text-center text-sm text-red-600">{fetchError}</p>
+
+  if (!clientSecret) return (
+    <div className="py-8 text-center">
+      <Loader2 size={22} className="mx-auto animate-spin text-stone-400" />
+      <p className="mt-2 text-sm text-stone-400">Loading payment form…</p>
+    </div>
+  )
+
+  return (
+    <Elements stripe={stripePromise} options={{ clientSecret, appearance: { theme: 'stripe' } }}>
+      <StripeForm amount={amount} onPaid={onPaid} onCancel={onCancel} />
+    </Elements>
   )
 }
