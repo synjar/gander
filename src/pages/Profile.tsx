@@ -72,10 +72,9 @@ export default function Profile() {
   const { user, configured, signOut } = useAuth()
   const [tab, setTab] = useState<Tab>('reviews')
 
-  const myReviews = allReviews.filter((r) => r.authorId === 'me')
-  const saved = favourites.map((id) => businessesById[id]).filter(Boolean)
-
   const isRealUser = configured && !user.isGuest
+  const myReviews = allReviews.filter((r) => r.authorId === (isRealUser ? user.id : 'me'))
+  const saved = favourites.map((id) => businessesById[id]).filter(Boolean)
   const profile = isRealUser
     ? {
         level: Math.max(1, Math.floor(myReviews.length / 3) + 1),
