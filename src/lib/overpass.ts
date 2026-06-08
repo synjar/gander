@@ -39,14 +39,17 @@ const HISTORIC_LABEL: Record<string, string> = {
   memorial:             'Memorial',
   ruins:                'Ruins',
   archaeological_site:  'Archaeological Site',
-  building:             'Historic Building',
 }
 const LEISURE_LABEL: Record<string, string> = {
   park:                 'Park',
   marina:               'Marina',
   nature_reserve:       'Nature Reserve',
-  beach_resort:         'Beach',
-  beach:                'Beach',
+}
+// man_made tags that are attractions (piers, lighthouses, etc.)
+const MANMADE_LABEL: Record<string, string> = {
+  pier:                 'Pier',
+  lighthouse:           'Lighthouse',
+  windmill:             'Windmill',
 }
 
 // OSM day abbreviation → full name index (Sunday=0 like JS Date)
@@ -519,15 +522,22 @@ export async function fetchOSMAttractions(
   const areaQuery = AREA_QUERIES[cityId]
   if (!areaQuery) return { venues: [], error: `No Overpass query defined for city: ${cityId}` }
 
-  // Use nwr (nodes + ways + relations) so parks/museums encoded as polygons are included
+  // Use node + way (not nwr — relations are expensive and rarely needed for UK attractions).
+  // way outputs use `out center` to get a centroid lat/lon.
   const query = `
-[out:json][timeout:60];
+[out:json][timeout:90];
 ${areaQuery};
 (
-  nwr[tourism~"^(attraction|museum|gallery|aquarium|zoo|theme_park|viewpoint|artwork)$"]["name"](area.a);
-  nwr[historic~"^(castle|monument|memorial|ruins|archaeological_site|building)$"]["name"](area.a);
-  nwr[leisure~"^(park|marina|nature_reserve|beach_resort)$"]["name"](area.a);
-  nwr[natural=beach]["name"](area.a);
+  node[tourism~"^(attraction|museum|gallery|aquarium|zoo|theme_park|viewpoint|artwork)$"]["name"](area.a);
+  way[tourism~"^(attraction|museum|gallery|aquarium|zoo|theme_park|viewpoint|artwork)$"]["name"](area.a);
+  node[historic~"^(castle|monument|memorial|ruins|archaeological_site)$"]["name"](area.a);
+  way[historic~"^(castle|monument|memorial|ruins|archaeological_site)$"]["name"](area.a);
+  node[leisure~"^(park|marina|nature_reserve)$"]["name"](area.a);
+  way[leisure~"^(park|marina|nature_reserve)$"]["name"](area.a);
+  node[man_made~"^(pier|lighthouse|windmill)$"]["name"](area.a);
+  way[man_made~"^(pier|lighthouse|windmill)$"]["name"](area.a);
+  node[natural=beach]["name"](area.a);
+  way[natural=beach]["name"](area.a);
 );
 out center tags ${limit};
 `.trim()
@@ -561,6 +571,7 @@ out center tags ${limit};
       TOURISM_LABEL[t.tourism ?? ''] ||
       HISTORIC_LABEL[t.historic ?? ''] ||
       LEISURE_LABEL[t.leisure ?? ''] ||
+      MANMADE_LABEL[t.man_made ?? ''] ||
       (t.natural === 'beach' ? 'Beach' : 'Attraction')
 
     const slug   = `${slugify(name)}-osm-${el.id}`

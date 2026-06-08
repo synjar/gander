@@ -1,10 +1,11 @@
-import { useCallback, useEffect, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import { Link } from 'react-router-dom'
 import {
   BarChart3,
   CalendarCheck,
   Check,
   CheckCircle2,
+  Download,
   ExternalLink,
   Eye,
   Heart,
@@ -21,6 +22,7 @@ import {
   X,
   XCircle,
 } from 'lucide-react'
+import { QRCodeCanvas } from 'qrcode.react'
 import clsx from 'clsx'
 import { businesses, businessesById } from '../data/businesses'
 import { useStore } from '../store/StoreContext'
@@ -860,6 +862,75 @@ function EditListingTab({ business }: { business: Business }) {
   )
 }
 
+// ---- Business QR code card -------------------------------------------------
+
+function BusinessQRCard({ business }: { business: Business }) {
+  const canvasRef = useRef<HTMLCanvasElement | null>(null)
+  const appOrigin =
+    (import.meta.env.VITE_APP_URL as string | undefined)?.replace(/\/$/, '') ||
+    window.location.origin
+  const pageUrl = `${appOrigin}/b/${business.slug}`
+
+  function downloadQR() {
+    // qrcode.react renders to a <canvas> — find it inside the wrapper div
+    const canvas = document.getElementById(`qr-canvas-${business.id}`) as HTMLCanvasElement | null
+    if (!canvas) return
+    const link = document.createElement('a')
+    link.href = canvas.toDataURL('image/png')
+    link.download = `${business.slug}-gander-qr.png`
+    link.click()
+  }
+
+  return (
+    <div className="rounded-2xl border border-stone-200 bg-white p-4">
+      <h3 className="flex items-center gap-1.5 font-semibold text-stone-900">
+        <QrCode size={16} className="text-brand-500" /> Review QR code
+      </h3>
+      <p className="mt-1 text-xs text-stone-500">
+        Print and display at your till or counter — customers scan to visit your Gander page
+        and leave reviews instantly.
+      </p>
+
+      {/* Printable QR block */}
+      <div className="mt-3 flex flex-col items-center gap-2 rounded-xl border border-dashed border-stone-200 bg-stone-50 py-5 px-4">
+        <div className="rounded-xl bg-white p-3 shadow-sm ring-1 ring-stone-100">
+          <QRCodeCanvas
+            id={`qr-canvas-${business.id}`}
+            value={pageUrl}
+            size={148}
+            level="M"
+            marginSize={1}
+            ref={canvasRef}
+          />
+        </div>
+        <div className="text-center">
+          <p className="text-xs font-bold text-stone-900">{business.name}</p>
+          <p className="text-[10px] text-stone-400 mt-0.5">Scan to review us on Gander</p>
+        </div>
+      </div>
+
+      <div className="mt-3 flex gap-2">
+        <button
+          onClick={downloadQR}
+          className="flex flex-1 items-center justify-center gap-1.5 rounded-xl border border-stone-200 px-3 py-2 text-sm font-semibold text-stone-700 hover:bg-stone-50 transition"
+        >
+          <Download size={14} /> Download PNG
+        </button>
+        <a
+          href={pageUrl}
+          target="_blank"
+          rel="noreferrer"
+          className="flex items-center gap-1.5 rounded-xl border border-stone-200 px-3 py-2 text-sm font-semibold text-stone-700 hover:bg-stone-50 transition"
+          title="Preview destination"
+        >
+          <ExternalLink size={14} />
+        </a>
+      </div>
+      <p className="mt-2 text-[10px] text-stone-400 text-center break-all">{pageUrl}</p>
+    </div>
+  )
+}
+
 // ---- Stripe Connect panel --------------------------------------------------
 
 function StripeConnectPanel({ businessId }: { businessId: string }) {
@@ -1278,6 +1349,7 @@ export default function MerchantDashboard() {
           {/* Deals manager + payouts + staff */}
           <aside className="space-y-4">
             <DealCreator business={business} />
+            <BusinessQRCard business={business} />
             <StripeConnectPanel businessId={business.id} />
             <StaffManager businessId={business.id} businessName={business.name} />
             <div className="rounded-2xl border border-stone-200 bg-white p-4">
