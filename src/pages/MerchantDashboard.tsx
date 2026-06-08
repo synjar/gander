@@ -34,6 +34,8 @@ import { discountPct, formatPrice } from '../lib/format'
 import * as db from '../lib/db'
 import type { StaffMember, DayHours, BusinessBooking } from '../lib/db'
 import { uploadImage, storageEnabled } from '../lib/storage'
+import { analyzeReviews } from '../lib/reviewInsights'
+import { profileStrength } from '../lib/profileStrength'
 import Avatar from '../components/Avatar'
 import Stars from '../components/Stars'
 import SmartImage from '../components/SmartImage'
@@ -526,11 +528,18 @@ function BarChart({ data, maxVal, color = '#f97316' }: { data: { label: string; 
 }
 
 function AnalyticsTab({ business }: { business: Business }) {
+  const { reviewsFor } = useStore()
   const [revenueTrend, setRevenueTrend] = useState<db.MonthlyRevenue[]>([])
   const [dayBookings, setDayBookings] = useState<db.DayBookings[]>([])
   const [engagement, setEngagement] = useState<db.BusinessEngagement | null>(null)
   const [searchTerms, setSearchTerms] = useState<{ query: string; count: number }[]>([])
+  const [peak, setPeak] = useState<db.PeakTimes | null>(null)
+  const [repeat, setRepeat] = useState<db.RepeatStats | null>(null)
   const [loading, setLoading] = useState(true)
+
+  // Review intelligence is computed from whatever reviews are loaded (works in
+  // demo mode and from seed data — no backend round-trip needed).
+  const reviewInsights = useMemo(() => analyzeReviews(reviewsFor(business.id)), [reviewsFor, business.id])
 
   useEffect(() => {
     const bid = business.id
@@ -539,14 +548,34 @@ function AnalyticsTab({ business }: { business: Business }) {
       db.getBookingsByDayOfWeek(bid),
       db.getBusinessEngagement(bid, 30),
       db.getSearchTerms(bid, 30),
-    ]).then(([rev, days, eng, terms]) => {
+      db.getPeakTimes(bid, 30),
+      db.getRepeatCustomerStats(bid),
+    ]).then(([rev, days, eng, terms, pk, rep]) => {
       setRevenueTrend(rev)
       setDayBookings(days)
       setEngagement(eng)
       setSearchTerms(terms)
+      setPeak(pk)
+      setRepeat(rep)
       setLoading(false)
     })
   }, [business.id])
+
+  const peakHour = peak && peak.total > 0 ? peak.byHour.indexOf(Math.max(...peak.byHour)) : null
+  const peakDay = peak && peak.total > 0 ? peak.byDay.indexOf(Math.max(...peak.byDay)) : null
+  const DAY_NAMES = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday']
+  const fmtHour = (h: number) => `${((h + 11) % 12) + 1}${h < 12 ? 'am' : 'pm'}`
+  const timeBands = peak
+    ? (() => {
+        const sum = (hrs: number[]) => hrs.reduce((s, h) => s + peak.byHour[h], 0)
+        return [
+          { label: 'Morning', value: sum([6, 7, 8, 9, 10, 11]) },
+          { label: 'Afternoon', value: sum([12, 13, 14, 15, 16]) },
+          { label: 'Evening', value: sum([17, 18, 19, 20, 21]) },
+          { label: 'Late', value: sum([22, 23, 0, 1, 2, 3, 4, 5]) },
+        ]
+      })()
+    : []
 
   const maxBookings = Math.max(...dayBookings.map((d) => d.count), 1)
 
@@ -676,6 +705,97 @@ function AnalyticsTab({ business }: { business: Business }) {
               </span>
             ))}
           </div>
+        </div>
+      )}
+
+      {/* Review intelligence */}
+      {reviewInsights.total > 0 && (reviewInsights.loved.length > 0 || reviewInsights.watch.length > 0) && (
+        <div className="rounded-2xl border border-stone-200 bg-white p-5">
+          <h3 className="font-semibold text-stone-900">Review intelligence</h3>
+          <p className="mt-0.5 text-sm text-stone-500">Themes pulled from your {reviewInsights.total} reviews.</p>
+          <div className="mt-3 grid gap-4 sm:grid-cols-2">
+            <div>
+              <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-emerald-600">Customers love</p>
+              {reviewInsights.loved.length === 0 ? (
+                <p className="text-sm text-stone-400">—</p>
+              ) : (
+                <div className="flex flex-wrap gap-2">
+                  {reviewInsights.loved.map((a) => (
+                    <span key={a.aspect} className="inline-flex items-center gap-1.5 rounded-full bg-emerald-50 px-3 py-1 text-sm capitalize text-emerald-800">
+                      {a.aspect}<span className="text-xs text-emerald-500">{a.count}</span>
+                    </span>
+                  ))}
+                </div>
+              )}
+            </div>
+            <div>
+              <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-amber-600">Worth watching</p>
+              {reviewInsights.watch.length === 0 ? (
+                <p className="text-sm text-stone-400">Nothing flagged 🎉</p>
+              ) : (
+                <div className="flex flex-wrap gap-2">
+                  {reviewInsights.watch.map((a) => (
+                    <span key={a.aspect} className="inline-flex items-center gap-1.5 rounded-full bg-amber-50 px-3 py-1 text-sm capitalize text-amber-800">
+                      {a.aspect}<span className="text-xs text-amber-500">{a.count}</span>
+                    </span>
+                  ))}
+                </div>
+              )}
+            </div>
+          </div>
+          {reviewInsights.trend.length >= 2 && (
+            <div className="mt-4">
+              <p className="mb-1 text-xs text-stone-500">Average rating trend</p>
+              <BarChart
+                data={reviewInsights.trend.map((t) => ({ label: t.label, value: Math.round(t.avg * 10) / 10 }))}
+                maxVal={5}
+                color="#f59e0b"
+              />
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* Customer loyalty (repeat rate) */}
+      {repeat && repeat.customers > 0 && (
+        <div className="rounded-2xl border border-stone-200 bg-white p-5">
+          <h3 className="font-semibold text-stone-900">Customer loyalty</h3>
+          <p className="mt-0.5 text-sm text-stone-500">From bookings and voucher purchases.</p>
+          <div className="mt-3 grid grid-cols-3 gap-3 text-center">
+            <div className="rounded-xl bg-stone-50 p-3">
+              <p className="font-display text-2xl font-semibold text-stone-900">{repeat.customers}</p>
+              <p className="text-xs text-stone-500">Customers</p>
+            </div>
+            <div className="rounded-xl bg-stone-50 p-3">
+              <p className="font-display text-2xl font-semibold text-stone-900">{repeat.repeat}</p>
+              <p className="text-xs text-stone-500">Came back</p>
+            </div>
+            <div className="rounded-xl bg-emerald-50 p-3">
+              <p className="font-display text-2xl font-semibold text-emerald-700">{repeat.repeatRate}%</p>
+              <p className="text-xs text-stone-500">Repeat rate</p>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Peak interest times */}
+      {peak && peak.total > 0 && (
+        <div className="rounded-2xl border border-stone-200 bg-white p-5">
+          <h3 className="font-semibold text-stone-900">When customers look you up</h3>
+          {peakDay != null && peakHour != null && (
+            <p className="mt-0.5 text-sm text-stone-500">
+              Busiest: <strong className="text-stone-700">{DAY_NAMES[peakDay]}</strong> around{' '}
+              <strong className="text-stone-700">{fmtHour(peakHour)}</strong>.
+            </p>
+          )}
+          <p className="mb-1 mt-4 text-xs text-stone-500">Views by day</p>
+          <BarChart
+            data={['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'].map((d, i) => ({ label: d, value: peak.byDay[i] }))}
+            maxVal={Math.max(...peak.byDay, 1)}
+            color="#8b5cf6"
+          />
+          <p className="mb-1 mt-4 text-xs text-stone-500">Views by time of day</p>
+          <BarChart data={timeBands} maxVal={Math.max(...timeBands.map((b) => b.value), 1)} color="#0ea5e9" />
         </div>
       )}
 
@@ -1439,6 +1559,7 @@ export default function MerchantDashboard() {
   }, [liveBusinesses, business.id, business.cityId, business.category])
 
   const categoryLabel = categoryMap[business.category]?.label ?? 'venues'
+  const strength = profileStrength(business)
 
   return (
     <div className="mx-auto max-w-6xl px-4 py-6">
@@ -1586,6 +1707,39 @@ export default function MerchantDashboard() {
 
           {/* Deals manager + payouts + staff */}
           <aside className="space-y-4">
+            {/* Profile strength */}
+            {strength.score < 100 && (
+              <section className="rounded-2xl border border-stone-200 bg-white p-4">
+                <div className="flex items-center justify-between">
+                  <h3 className="font-semibold text-stone-900">Listing strength</h3>
+                  <span className={clsx(
+                    'text-sm font-bold',
+                    strength.score >= 80 ? 'text-emerald-600' : strength.score >= 50 ? 'text-amber-600' : 'text-rose-600',
+                  )}>{strength.score}%</span>
+                </div>
+                <div className="mt-2 h-2 overflow-hidden rounded-full bg-stone-100">
+                  <div
+                    className={clsx('h-full rounded-full', strength.score >= 80 ? 'bg-emerald-500' : strength.score >= 50 ? 'bg-amber-500' : 'bg-rose-500')}
+                    style={{ width: `${strength.score}%` }}
+                  />
+                </div>
+                <p className="mt-2 text-xs text-stone-500">Complete listings get noticeably more views. Still to add:</p>
+                <ul className="mt-2 space-y-1">
+                  {strength.items.filter((i) => !i.done).map((i) => (
+                    <li key={i.label} className="flex items-center gap-2 text-sm text-stone-600">
+                      <span className="grid h-4 w-4 shrink-0 place-items-center rounded-full border border-stone-300 text-[10px] text-stone-400">+</span>
+                      {i.label}
+                    </li>
+                  ))}
+                </ul>
+                <button
+                  onClick={() => setDashTab('edit')}
+                  className="mt-3 w-full rounded-full bg-stone-900 py-2 text-sm font-semibold text-white transition hover:bg-stone-800"
+                >
+                  Improve listing
+                </button>
+              </section>
+            )}
             <DealCreator business={business} />
             <BusinessQRCard business={business} />
             <StripeConnectPanel businessId={business.id} />

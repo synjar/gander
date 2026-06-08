@@ -105,12 +105,19 @@ merchants aren't nagged.
 This is transactional mail (a merchant's own account summary), so it correctly
 uses your main `RESEND_API_KEY` / domain — *not* the cold-outreach domain.
 
-## Done in this pass
+## Done
 
 - ✅ Real profile views / saves / actions / conversion + local rank benchmark
 - ✅ "What people searched to find you" (search-term attribution on result clicks)
 - ✅ "What Gander has driven for you" ROI banner
 - ✅ Weekly digest email (above)
+- ✅ **Review intelligence** — aspect themes (loved vs watch) + rating trend, from
+  review text. No backend call; works from seed reviews immediately.
+- ✅ **Customer loyalty** — repeat-customer rate from bookings + vouchers (by user)
+- ✅ **Peak interest times** — views by day + time-of-day, with the busiest slot
+  called out. Populates from `business_events` view data.
+- ✅ **Listing strength** — completeness score + nudges in the overview, deep-links
+  to the edit tab. (All four reuse existing tables — no new SQL or env.)
 
 ## Still worth doing later
 

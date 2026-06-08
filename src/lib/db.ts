@@ -1445,6 +1445,62 @@ export async function getBusinessEngagement(businessId: string, days = 30): Prom
   return { views: counts.view ?? 0, actions: phone + directions + website, phone, directions, website, trend }
 }
 
+export interface PeakTimes {
+  byHour: number[] // 24 buckets (local time)
+  byDay: number[] // 7 buckets, 0 = Sunday
+  total: number
+}
+
+/** When customers view a business — hour-of-day and day-of-week distribution. */
+export async function getPeakTimes(businessId: string, days = 30): Promise<PeakTimes> {
+  const empty: PeakTimes = { byHour: Array(24).fill(0), byDay: Array(7).fill(0), total: 0 }
+  if (!backendEnabled) return empty
+  const since = new Date()
+  since.setDate(since.getDate() - days)
+  const { data } = await client()
+    .from('business_events')
+    .select('created_at')
+    .eq('business_id', businessId)
+    .eq('type', 'view')
+    .gte('created_at', since.toISOString())
+  if (!data) return empty
+  const byHour = Array(24).fill(0)
+  const byDay = Array(7).fill(0)
+  for (const e of data) {
+    const d = new Date(e.created_at as string)
+    byHour[d.getHours()]++
+    byDay[d.getDay()]++
+  }
+  return { byHour, byDay, total: data.length }
+}
+
+export interface RepeatStats {
+  customers: number
+  repeat: number
+  repeatRate: number // % of customers who came back
+}
+
+/** Repeat-customer rate from bookings + voucher purchases (by user). */
+export async function getRepeatCustomerStats(businessId: string): Promise<RepeatStats> {
+  if (!backendEnabled) return { customers: 0, repeat: 0, repeatRate: 0 }
+  const [bk, vc] = await Promise.all([
+    client().from('bookings').select('user_id').eq('business_id', businessId),
+    client().from('vouchers').select('user_id').eq('business_id', businessId),
+  ])
+  const counts: Record<string, number> = {}
+  for (const r of bk.data ?? []) {
+    const u = r.user_id as string | null
+    if (u) counts[u] = (counts[u] ?? 0) + 1
+  }
+  for (const r of vc.data ?? []) {
+    const u = r.user_id as string | null
+    if (u) counts[u] = (counts[u] ?? 0) + 1
+  }
+  const customers = Object.keys(counts).length
+  const repeat = Object.values(counts).filter((n) => n > 1).length
+  return { customers, repeat, repeatRate: customers > 0 ? Math.round((repeat / customers) * 100) : 0 }
+}
+
 /** Real "saves" — how many users have favourited this business. Uses a
  *  SECURITY DEFINER RPC because the favourites table is RLS-restricted to each
  *  user's own rows, so a merchant can't count everyone's saves directly. */
