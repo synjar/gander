@@ -691,7 +691,9 @@ export async function saveBusinessProfile(
       },
       { onConflict: 'business_id' },
     )
-  if (error) throw error
+  // Supabase errors aren't Error instances, so surface the real message/details
+  // (e.g. a missing column or an RLS denial) instead of a generic "Save failed".
+  if (error) throw new Error([error.message, error.details, error.hint].filter(Boolean).join(' · '))
 }
 
 // --- Merchant: read bookings for their business ----------------------------
