@@ -1,10 +1,10 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useMemo } from 'react'
 import { Link } from 'react-router-dom'
-import { Heart, MapPin, MessageCircle, PenLine, Share2, TrendingUp, Users } from 'lucide-react'
+import { Heart, MapPin, MessageCircle, PenLine, Share2, TrendingUp, UserPlus, Users } from 'lucide-react'
 import clsx from 'clsx'
 import { seedFeed } from '../data/feed'
 import { businessesById } from '../data/businesses'
-import { currentUser } from '../data/users'
+import { currentUser, users } from '../data/users'
 import type { FeedPost } from '../data/types'
 import { useStore } from '../store/StoreContext'
 import { useAuth } from '../auth/AuthContext'
@@ -14,6 +14,9 @@ import Avatar from '../components/Avatar'
 import Stars from '../components/Stars'
 import SmartImage from '../components/SmartImage'
 import LevelBadge from '../components/LevelBadge'
+
+// In demo mode, simulate the logged-in user following Olivia & Priya
+const DEMO_FOLLOWING_IDS = new Set(['u1', 'u3'])
 
 const actionText: Record<FeedPost['type'], string> = {
   review: 'reviewed',
@@ -133,7 +136,9 @@ export default function Feed() {
   const [followingIds, setFollowingIds] = useState<Set<string>>(new Set())
 
   useEffect(() => {
-    db.getLeaderboard(5).then(setLeaderboard)
+    db.getLeaderboard(5).then((entries) => {
+      setLeaderboard(entries)
+    })
   }, [])
 
   useEffect(() => {
@@ -141,10 +146,26 @@ export default function Feed() {
     db.getFollowing(user.id).then((ids) => setFollowingIds(new Set(ids)))
   }, [isRealUser, user.id])
 
+  // Seed-user fallback for the leaderboard when Supabase isn't connected
+  const demoLeaderboard = useMemo<LeaderboardEntry[]>(
+    () =>
+      [...users]
+        .filter((u) => u.id !== 'me')
+        .sort((a, b) => b.points - a.points)
+        .slice(0, 5)
+        .map((u) => ({ id: u.id, name: u.name, avatar: u.avatar, level: u.level, points: u.points })),
+    [],
+  )
+  const visibleLeaderboard = leaderboard.length > 0 ? leaderboard : demoLeaderboard
+
   const allPosts = seedFeed
-  const visiblePosts = filter === 'following' && followingIds.size > 0
-    ? allPosts.filter((p) => followingIds.has(p.userId))
-    : allPosts
+  // Determine which set of user IDs to filter by for the Following tab
+  const effectiveFollowingIds = isRealUser ? followingIds : DEMO_FOLLOWING_IDS
+  const visiblePosts = useMemo(() => {
+    if (filter !== 'following') return allPosts
+    if (effectiveFollowingIds.size === 0) return []
+    return allPosts.filter((p) => effectiveFollowingIds.has(p.userId))
+  }, [filter, effectiveFollowingIds])
 
   // label is display text; query must match actual business tag strings in the seed data
   const tags = [
@@ -186,10 +207,10 @@ export default function Feed() {
           <Composer />
           {visiblePosts.length === 0 ? (
             <div className="rounded-2xl border border-dashed border-stone-300 py-16 text-center">
-              <Users className="mx-auto text-stone-300" size={38} />
-              <p className="mt-3 font-semibold text-stone-700">No posts yet</p>
+              <UserPlus className="mx-auto text-stone-300" size={38} />
+              <p className="mt-3 font-semibold text-stone-700">No one to follow yet</p>
               <p className="mt-1 text-sm text-stone-500">
-                Follow reviewers to see their activity here.
+                Follow reviewers from the leaderboard to see their posts here.
               </p>
             </div>
           ) : (
@@ -205,25 +226,28 @@ export default function Feed() {
               <h3 className="flex items-center gap-1.5 font-semibold text-stone-900">
                 <TrendingUp size={16} className="text-brand-500" /> Top reviewers
               </h3>
-              {leaderboard.length === 0 ? (
-                <p className="mt-3 text-sm text-stone-400">No data yet</p>
-              ) : (
-                <ul className="mt-3 space-y-3">
-                  {leaderboard.map((u, i) => (
-                    <li key={u.id} className="flex items-center gap-3">
+              <ul className="mt-3 space-y-3">
+                {visibleLeaderboard.map((u, i) => (
+                  <li key={u.id}>
+                    <Link
+                      to={`/u/${u.id}`}
+                      className="flex items-center gap-3 rounded-xl p-1 transition hover:bg-stone-50"
+                    >
                       <span className="w-4 text-sm font-bold text-stone-400">{i + 1}</span>
                       <Avatar name={u.name} src={u.avatar} size={36} />
                       <div className="min-w-0 flex-1">
-                        <p className="truncate text-sm font-semibold text-stone-900">{u.name}</p>
+                        <p className="truncate text-sm font-semibold text-stone-900 hover:text-brand-600">
+                          {u.name}
+                        </p>
                         <p className="text-xs text-stone-400">
                           {u.points.toLocaleString('en-GB')} pts
                         </p>
                       </div>
                       <LevelBadge level={u.level} />
-                    </li>
-                  ))}
-                </ul>
-              )}
+                    </Link>
+                  </li>
+                ))}
+              </ul>
             </div>
 
             <div className="rounded-2xl bg-white p-5 card-shadow ring-1 ring-stone-100">
