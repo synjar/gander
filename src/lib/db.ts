@@ -1089,13 +1089,13 @@ export async function getPendingReviewVenues(
 
 export async function recordReferral(referrerId: string, referredId: string): Promise<void> {
   if (!backendEnabled) return
-  // Only record once — unique constraint on referred_id
-  const { error } = await client()
-    .from('referrals')
-    .insert({ referrer_id: referrerId, referred_id: referredId })
-  if (error) return // silently ignore duplicates
-  // Award XP to referrer
-  await awardPoints(referrerId, 100)
+  // Delegate to a SECURITY DEFINER RPC so the new user's session can award
+  // points and create a reward for the referrer without hitting RLS.
+  const { error } = await client().rpc('process_referral', {
+    p_referrer_id: referrerId,
+    p_referred_id: referredId,
+  })
+  if (error) console.error('[gander] process_referral failed:', error)
 }
 
 export async function hasBeenReferred(userId: string): Promise<boolean> {
