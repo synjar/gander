@@ -148,7 +148,7 @@ function logError(scope: string) {
 }
 
 export function StoreProvider({ children }: { children: ReactNode }) {
-  const { user, session, configured } = useAuth()
+  const { user, session, configured, loading: authLoading } = useAuth()
   const backendUserId = configured && session ? session.user.id : null
   const backendUser = useMemo(
     () => ({ id: user.id, name: user.name, avatar: user.avatar ?? '' }),
@@ -238,11 +238,12 @@ export function StoreProvider({ children }: { children: ReactNode }) {
     setVouchers(vchs)
   }, [backendUserId])
 
-  // Initial load of public data when backend is configured.
+  // Initial load of public data — wait for auth to finish so the session
+  // JWT is available for authenticated RLS policies (e.g. submissions).
   useEffect(() => {
-    if (!db.backendEnabled) return
+    if (!db.backendEnabled || authLoading) return
     void reloadPublic().catch(logError('load public'))
-  }, [reloadPublic])
+  }, [reloadPublic, authLoading])
 
   // Realtime: live updates for reviews, deals and owner responses.
   useEffect(() => {
