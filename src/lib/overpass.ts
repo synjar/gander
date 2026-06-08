@@ -520,16 +520,24 @@ export async function fetchOSMAttractions(
 
   // Use node + way (not nwr — relations are expensive and rarely needed for UK attractions).
   // way outputs use `out center` to get a centroid lat/lon.
+  //
+  // tourism=attraction and leisure=park are very broad tags — every city has thousands.
+  // We add a ["wikidata"] pre-filter so Overpass only returns elements notable enough to
+  // have a Wikidata entry (Hyde Park yes, unnamed pocket green no). This keeps the
+  // result set tight and avoids 504 timeouts on large areas like London.
   const query = `
-[out:json][timeout:90];
+[out:json][timeout:120];
 ${areaQuery};
 (
-  node[tourism~"^(attraction|museum|gallery|aquarium|zoo|theme_park|viewpoint)$"]["name"](area.a);
-  way[tourism~"^(attraction|museum|gallery|aquarium|zoo|theme_park|viewpoint)$"]["name"](area.a);
+  node[tourism=attraction]["wikidata"]["name"](area.a);
+  way[tourism=attraction]["wikidata"]["name"](area.a);
+  node[tourism~"^(museum|gallery|aquarium|zoo|theme_park|viewpoint)$"]["name"](area.a);
+  way[tourism~"^(museum|gallery|aquarium|zoo|theme_park|viewpoint)$"]["name"](area.a);
   node[historic~"^(castle|monument)$"]["name"](area.a);
   way[historic~"^(castle|monument)$"]["name"](area.a);
-  node[leisure~"^(park|marina|nature_reserve)$"]["name"](area.a);
-  way[leisure~"^(park|marina|nature_reserve)$"]["name"](area.a);
+  way[leisure=park]["wikidata"]["name"](area.a);
+  node[leisure~"^(marina|nature_reserve)$"]["name"](area.a);
+  way[leisure~"^(marina|nature_reserve)$"]["name"](area.a);
   node[man_made~"^(pier|lighthouse|windmill)$"]["name"](area.a);
   way[man_made~"^(pier|lighthouse|windmill)$"]["name"](area.a);
   node[natural=beach]["name"](area.a);
