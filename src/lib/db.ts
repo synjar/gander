@@ -1349,3 +1349,78 @@ export async function getBookingsByDayOfWeek(businessId: string): Promise<DayBoo
   }
   return DAYS.map((day, i) => ({ day, count: counts[i] }))
 }
+
+// --- Engagement events (real analytics) ------------------------------------
+
+export type BusinessEventType = 'view' | 'phone' | 'directions' | 'website' | 'menu' | 'share'
+
+/** Fire-and-forget: record an engagement event for a business. Never throws —
+ *  analytics must never break the customer-facing UX. */
+export async function logBusinessEvent(businessId: string, type: BusinessEventType): Promise<void> {
+  if (!backendEnabled || !businessId) return
+  try {
+    await client().from('business_events').insert({ business_id: businessId, type })
+  } catch {
+    /* swallow — best-effort telemetry */
+  }
+}
+
+export interface BusinessEngagement {
+  views: number
+  actions: number // phone + directions + website
+  phone: number
+  directions: number
+  website: number
+  /** Continuous daily view counts across the window (oldest → newest). */
+  trend: { date: string; views: number }[]
+}
+
+/** Aggregate engagement for a business over the last `days` days. */
+export async function getBusinessEngagement(businessId: string, days = 30): Promise<BusinessEngagement> {
+  const empty: BusinessEngagement = { views: 0, actions: 0, phone: 0, directions: 0, website: 0, trend: [] }
+  if (!backendEnabled) return empty
+
+  const since = new Date()
+  since.setDate(since.getDate() - (days - 1))
+  since.setHours(0, 0, 0, 0)
+
+  const { data } = await client()
+    .from('business_events')
+    .select('type, created_at')
+    .eq('business_id', businessId)
+    .gte('created_at', since.toISOString())
+  if (!data) return empty
+
+  const counts: Record<string, number> = {}
+  const byDay: Record<string, number> = {}
+  for (const e of data) {
+    const type = e.type as string
+    counts[type] = (counts[type] ?? 0) + 1
+    if (type === 'view') {
+      const day = (e.created_at as string).slice(0, 10)
+      byDay[day] = (byDay[day] ?? 0) + 1
+    }
+  }
+
+  const trend: { date: string; views: number }[] = []
+  for (let i = days - 1; i >= 0; i--) {
+    const d = new Date()
+    d.setDate(d.getDate() - i)
+    const key = d.toISOString().slice(0, 10)
+    trend.push({ date: key, views: byDay[key] ?? 0 })
+  }
+
+  const phone = counts.phone ?? 0
+  const directions = counts.directions ?? 0
+  const website = counts.website ?? 0
+  return { views: counts.view ?? 0, actions: phone + directions + website, phone, directions, website, trend }
+}
+
+/** Real "saves" — how many users have favourited this business. Uses a
+ *  SECURITY DEFINER RPC because the favourites table is RLS-restricted to each
+ *  user's own rows, so a merchant can't count everyone's saves directly. */
+export async function getFavouriteCount(businessId: string): Promise<number> {
+  if (!backendEnabled) return 0
+  const { data } = await client().rpc('business_favourite_count', { p_business_id: businessId })
+  return typeof data === 'number' ? data : 0
+}

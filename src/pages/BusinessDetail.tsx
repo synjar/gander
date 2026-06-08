@@ -127,6 +127,7 @@ export default function BusinessDetail() {
   useEffect(() => {
     if (rawB?.id) {
       db.getBusinessProfile(rawB.id).then(setProfile).catch(() => setProfile(null))
+      void db.logBusinessEvent(rawB.id, 'view') // engagement analytics (fire-and-forget)
     }
   }, [rawB?.id])
 
@@ -403,7 +404,7 @@ export default function BusinessDetail() {
           >
             <Share2 size={18} />
           </button>
-          <DirectionsButton lat={b.lat} lng={b.lng} name={b.name} variant="icon" />
+          <DirectionsButton lat={b.lat} lng={b.lng} name={b.name} variant="icon" onNavigate={() => void db.logBusinessEvent(b.id, 'directions')} />
         </span>
       </div>
 
@@ -551,15 +552,27 @@ export default function BusinessDetail() {
                   {b.neighbourhood}, {b.postcode}
                 </span>
               </p>
-              <p className="flex items-center gap-2.5 text-stone-600">
-                <Phone size={16} className="shrink-0 text-brand-500" />
-                {b.phone}
-              </p>
+              {b.phone && (
+                <a
+                  href={`tel:${b.phone.replace(/\s+/g, '')}`}
+                  onClick={() => void db.logBusinessEvent(b.id, 'phone')}
+                  className="flex items-center gap-2.5 text-stone-600 transition hover:text-brand-600"
+                >
+                  <Phone size={16} className="shrink-0 text-brand-500" />
+                  {b.phone}
+                </a>
+              )}
               {b.website && (
-                <p className="flex items-center gap-2.5 text-stone-600">
+                <a
+                  href={/^https?:\/\//i.test(b.website) ? b.website : `https://${b.website}`}
+                  target="_blank"
+                  rel="noreferrer"
+                  onClick={() => void db.logBusinessEvent(b.id, 'website')}
+                  className="flex items-center gap-2.5 text-stone-600 transition hover:text-brand-600"
+                >
                   <Globe size={16} className="shrink-0 text-brand-500" />
                   <span className="text-brand-600">{b.website}</span>
-                </p>
+                </a>
               )}
             </div>
             <div className="mt-4 h-40 overflow-hidden rounded-xl ring-1 ring-stone-200">
@@ -579,7 +592,7 @@ export default function BusinessDetail() {
                 className="h-full w-full"
               />
             </div>
-            <DirectionsButton lat={b.lat} lng={b.lng} name={b.name} variant="full" />
+            <DirectionsButton lat={b.lat} lng={b.lng} name={b.name} variant="full" onNavigate={() => void db.logBusinessEvent(b.id, 'directions')} />
           </div>
 
           <div className="rounded-2xl border border-stone-200 bg-white p-5">

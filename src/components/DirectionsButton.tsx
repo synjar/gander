@@ -13,6 +13,8 @@ interface Props {
   name: string
   /** 'icon' = small round icon button (action bar); 'full' = text+icon pill */
   variant?: 'icon' | 'full'
+  /** Called when the user picks a maps app (for engagement analytics). */
+  onNavigate?: () => void
 }
 
 function isIOS(): boolean {
@@ -45,7 +47,7 @@ const WAZE: MapOption = {
   url: (lat, lng) => `https://waze.com/ul?ll=${lat},${lng}&navigate=yes`,
 }
 
-export default function DirectionsButton({ lat, lng, name, variant = 'icon' }: Props) {
+export default function DirectionsButton({ lat, lng, name, variant = 'icon', onNavigate }: Props) {
   const [open, setOpen] = useState(false)
   const ref = useRef<HTMLDivElement>(null)
 
@@ -97,7 +99,7 @@ export default function DirectionsButton({ lat, lng, name, variant = 'icon' }: P
               href={opt.url(lat, lng, name)}
               target="_blank"
               rel="noreferrer"
-              onClick={() => setOpen(false)}
+              onClick={() => { onNavigate?.(); setOpen(false) }}
               className="flex items-center gap-2.5 px-4 py-2.5 text-sm text-stone-700 transition hover:bg-stone-50"
             >
               <span className="text-base leading-none">{opt.icon}</span>

@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { Link } from 'react-router-dom'
 import {
   BarChart3,
@@ -26,6 +26,7 @@ import {
 import { QRCodeCanvas } from 'qrcode.react'
 import clsx from 'clsx'
 import { businesses, businessesById } from '../data/businesses'
+import { categoryMap } from '../data/categories'
 import { useStore } from '../store/StoreContext'
 import { useAuth } from '../auth/AuthContext'
 import type { Business, Dish, Review } from '../data/types'
@@ -527,6 +528,7 @@ function BarChart({ data, maxVal, color = '#f97316' }: { data: { label: string; 
 function AnalyticsTab({ business }: { business: Business }) {
   const [revenueTrend, setRevenueTrend] = useState<db.MonthlyRevenue[]>([])
   const [dayBookings, setDayBookings] = useState<db.DayBookings[]>([])
+  const [engagement, setEngagement] = useState<db.BusinessEngagement | null>(null)
   const [loading, setLoading] = useState(true)
 
   useEffect(() => {
@@ -534,9 +536,11 @@ function AnalyticsTab({ business }: { business: Business }) {
     Promise.all([
       db.getVoucherRevenueTrend(bid),
       db.getBookingsByDayOfWeek(bid),
-    ]).then(([rev, days]) => {
+      db.getBusinessEngagement(bid, 30),
+    ]).then(([rev, days, eng]) => {
       setRevenueTrend(rev)
       setDayBookings(days)
+      setEngagement(eng)
       setLoading(false)
     })
   }, [business.id])
@@ -546,6 +550,12 @@ function AnalyticsTab({ business }: { business: Business }) {
   const totalRevenue = revenueTrend.reduce((s, r) => s + r.revenue, 0)
   const totalVouchers = revenueTrend.reduce((s, r) => s + r.count, 0)
   const totalBookings = dayBookings.reduce((s, d) => s + d.count, 0)
+
+  const conversion = engagement && engagement.views > 0
+    ? Math.round((engagement.actions / engagement.views) * 100)
+    : 0
+  // Last 14 days of the views trend, for a compact sparkline-style chart
+  const recentViews = engagement?.trend.slice(-14) ?? []
 
   if (loading) {
     return (
@@ -573,6 +583,56 @@ function AnalyticsTab({ business }: { business: Business }) {
           <p className="text-2xl font-display font-semibold text-stone-900">{totalBookings}</p>
           <p className="mt-0.5 text-xs text-stone-500">Total bookings</p>
         </div>
+      </div>
+
+      {/* Customer engagement (real event tracking) */}
+      <div className="rounded-2xl border border-stone-200 bg-white p-5">
+        <h3 className="font-semibold text-stone-900">Customer engagement — last 30 days</h3>
+        {!engagement || engagement.views === 0 ? (
+          <p className="mt-4 text-center text-sm text-stone-400">
+            No views recorded yet. Engagement is tracked from the moment your listing is live —
+            views, calls, directions and website taps will show here.
+          </p>
+        ) : (
+          <>
+            <div className="mt-3 grid grid-cols-3 gap-3 text-center">
+              <div className="rounded-xl bg-stone-50 p-3">
+                <p className="font-display text-2xl font-semibold text-stone-900">{engagement.views.toLocaleString('en-GB')}</p>
+                <p className="text-xs text-stone-500">Profile views</p>
+              </div>
+              <div className="rounded-xl bg-stone-50 p-3">
+                <p className="font-display text-2xl font-semibold text-stone-900">{engagement.actions.toLocaleString('en-GB')}</p>
+                <p className="text-xs text-stone-500">Customer actions</p>
+              </div>
+              <div className="rounded-xl bg-stone-50 p-3">
+                <p className="font-display text-2xl font-semibold text-stone-900">{conversion}%</p>
+                <p className="text-xs text-stone-500">Took action</p>
+              </div>
+            </div>
+
+            <p className="mb-1 mt-5 text-xs text-stone-500">Daily profile views (last 14 days)</p>
+            <BarChart
+              data={recentViews.map((d) => ({ label: d.date.slice(8), value: d.views }))}
+              maxVal={Math.max(...recentViews.map((d) => d.views), 1)}
+              color="#0ea5e9"
+            />
+
+            <div className="mt-5 grid grid-cols-3 gap-3 border-t border-stone-100 pt-4 text-center text-sm">
+              <div>
+                <p className="font-display text-xl font-semibold text-stone-900">{engagement.phone}</p>
+                <p className="text-xs text-stone-500">Calls</p>
+              </div>
+              <div>
+                <p className="font-display text-xl font-semibold text-stone-900">{engagement.directions}</p>
+                <p className="text-xs text-stone-500">Directions</p>
+              </div>
+              <div>
+                <p className="font-display text-xl font-semibold text-stone-900">{engagement.website}</p>
+                <p className="text-xs text-stone-500">Website</p>
+              </div>
+            </div>
+          </>
+        )}
       </div>
 
       {/* Revenue trend */}
@@ -1303,19 +1363,38 @@ export default function MerchantDashboard() {
     (b) => b.businessId === business.id && b.status === 'confirmed',
   ).length
 
-  const views = stats.reviewCount * 37 + 1840
-  const saves = Math.round(stats.reviewCount * 0.9)
-
   const [showScanner, setShowScanner] = useState(false)
   const [dashTab, setDashTab] = useState<'overview' | 'bookings' | 'analytics' | 'edit'>('overview')
 
   // Avg spend from real voucher data
   const [voucherStats, setVoucherStats] = useState<{ count: number; avgSpend: number | null; totalRevenue: number } | null>(null)
+  // Real engagement (profile views + action taps) and saves
+  const [engagement, setEngagement] = useState<db.BusinessEngagement | null>(null)
+  const [favCount, setFavCount] = useState<number | null>(null)
   useEffect(() => {
-    if (db.backendEnabled) {
-      db.getBusinessVoucherStats(business.id).then(setVoucherStats).catch(console.error)
-    }
+    if (!db.backendEnabled) { setVoucherStats(null); setEngagement(null); setFavCount(null); return }
+    db.getBusinessVoucherStats(business.id).then(setVoucherStats).catch(console.error)
+    db.getBusinessEngagement(business.id, 30).then(setEngagement).catch(() => {})
+    db.getFavouriteCount(business.id).then(setFavCount).catch(() => {})
   }, [business.id])
+
+  // Real where we have it; gentle estimate in demo mode so the dashboard isn't empty
+  const views = engagement ? engagement.views : stats.reviewCount * 37 + 1840
+  const saves = favCount != null ? favCount : Math.round(stats.reviewCount * 0.9)
+
+  // Local benchmark: rank by rating among same-category venues in the same city
+  const benchmark = useMemo(() => {
+    const peers = [...businesses, ...liveBusinesses].filter(
+      (x) => x.cityId === business.cityId && x.category === business.category,
+    )
+    if (peers.length < 3) return null
+    const sorted = [...peers].sort((a, b) => b.rating - a.rating)
+    const rank = sorted.findIndex((x) => x.id === business.id) + 1
+    const avgRating = peers.reduce((s, x) => s + x.rating, 0) / peers.length
+    return { rank: rank || null, total: peers.length, avgRating }
+  }, [liveBusinesses, business.id, business.cityId, business.category])
+
+  const categoryLabel = categoryMap[business.category]?.label ?? 'venues'
 
   return (
     <div className="mx-auto max-w-6xl px-4 py-6">
@@ -1400,10 +1479,15 @@ export default function MerchantDashboard() {
 
       {/* Stats */}
       <div className="mt-4 grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-6">
-        <StatCard icon={Star} label="Rating" value={stats.rating.toFixed(1)} hint="Top 10% locally" />
+        <StatCard
+          icon={Star}
+          label="Rating"
+          value={stats.rating.toFixed(1)}
+          hint={benchmark?.rank ? `#${benchmark.rank} of ${benchmark.total} ${categoryLabel} in ${business.neighbourhood}` : undefined}
+        />
         <StatCard icon={MessageSquare} label="Reviews" value={stats.reviewCount.toLocaleString('en-GB')} />
-        <StatCard icon={Eye} label="Profile views" value={views.toLocaleString('en-GB')} hint="+12% this week" />
-        <StatCard icon={Heart} label="Saves" value={saves.toLocaleString('en-GB')} />
+        <StatCard icon={Eye} label="Profile views" value={views.toLocaleString('en-GB')} hint={engagement ? 'last 30 days' : undefined} />
+        <StatCard icon={Heart} label="Saves" value={saves.toLocaleString('en-GB')} hint={favCount != null ? 'wishlisted' : undefined} />
         <StatCard icon={CalendarCheck} label="Bookings" value={venueBookings} hint="via Gander" />
         <StatCard
           icon={Wallet}
