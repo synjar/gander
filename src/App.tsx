@@ -10,6 +10,7 @@ import Profile from './pages/Profile'
 import BusinessLanding from './pages/BusinessLanding'
 import MerchantDashboard from './pages/MerchantDashboard'
 import BusinessOnboarding from './pages/BusinessOnboarding'
+import Redeem from './pages/Redeem'
 import Admin from './pages/Admin'
 import NotFound from './pages/NotFound'
 
@@ -26,6 +27,7 @@ const router = createBrowserRouter([
       { path: 'me', element: <Profile /> },
       { path: 'business', element: <BusinessLanding /> },
       { path: 'business/join', element: <BusinessOnboarding /> },
+      { path: 'redeem/:code', element: <Redeem /> },
       { path: 'business/dashboard', element: <MerchantDashboard /> },
       { path: 'admin', element: <Admin /> },
       { path: '*', element: <NotFound /> },

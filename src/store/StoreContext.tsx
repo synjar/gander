@@ -259,6 +259,9 @@ export function StoreProvider({ children }: { children: ReactNode }) {
       .on('postgres_changes', { event: '*', schema: 'public', table: 'review_responses' }, () => {
         void reloadPublic()
       })
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'business_submissions' }, () => {
+        void reloadPublic()
+      })
       .subscribe()
     return () => {
       void sb.removeChannel(channel)
@@ -275,6 +278,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
       return
     }
     let cancelled = false
+    void reloadPublic().catch(logError('reload public on sign-in'))
     void (async () => {
       try {
         const [favs, bks, vchs] = await Promise.all([

@@ -11,6 +11,7 @@ import {
   Star,
   Ticket,
 } from 'lucide-react'
+import { QRCodeSVG } from 'qrcode.react'
 import clsx from 'clsx'
 import { currentUser } from '../data/users'
 import { businessesById } from '../data/businesses'
@@ -306,21 +307,35 @@ export default function Profile() {
                 cta={{ to: '/deals', label: 'Browse deals' }}
               />
             ) : (
-              <div className="grid gap-3 sm:grid-cols-2">
+              <div className="grid gap-4 sm:grid-cols-2">
                 {vouchers.map((v) => (
                   <div
                     key={v.id}
-                    className="flex items-center gap-4 rounded-2xl border-2 border-dashed border-brand-200 bg-brand-50/60 p-4"
+                    className={`rounded-2xl border-2 border-dashed p-4 ${v.redeemed ? 'border-stone-200 bg-stone-50 opacity-60' : 'border-brand-200 bg-brand-50/60'}`}
                   >
-                    <div className="grid h-12 w-12 shrink-0 place-items-center rounded-xl bg-white text-brand-500">
-                      <Ticket size={22} />
+                    <div className="flex items-center gap-3">
+                      <div className="grid h-10 w-10 shrink-0 place-items-center rounded-xl bg-white text-brand-500">
+                        <Ticket size={20} />
+                      </div>
+                      <div className="min-w-0 flex-1">
+                        <p className="truncate font-semibold text-stone-900">{v.title}</p>
+                        <p className="text-sm text-stone-500">{v.businessName}</p>
+                      </div>
                     </div>
-                    <div className="min-w-0 flex-1">
-                      <p className="truncate font-semibold text-stone-900">{v.title}</p>
-                      <p className="text-sm text-stone-500">{v.businessName}</p>
-                      <p className="mt-0.5 font-mono text-sm font-bold tracking-wider text-brand-700">
-                        {v.code}
-                      </p>
+                    <div className="mt-3 flex items-center justify-between gap-4">
+                      <div>
+                        <p className="font-mono text-base font-bold tracking-wider text-brand-700">{v.code}</p>
+                        <p className="text-xs text-stone-400">{v.redeemed ? 'Redeemed ✓' : 'Show this at the venue'}</p>
+                      </div>
+                      {!v.redeemed && (
+                        <div className="shrink-0 rounded-xl bg-white p-1.5 shadow-sm">
+                          <QRCodeSVG
+                            value={`${window.location.origin}/redeem/${v.code}`}
+                            size={72}
+                            fgColor="#1c1917"
+                          />
+                        </div>
+                      )}
                     </div>
                     <span className="shrink-0 font-semibold text-stone-700">
                       {formatPrice(v.dealPrice)}
