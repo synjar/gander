@@ -11,7 +11,6 @@ import {
   Globe,
   Landmark,
   MapPin,
-  Navigation,
   PenLine,
   Phone,
   Share2,
@@ -36,6 +35,7 @@ import BookingModal from '../components/BookingModal'
 import OrderModal from '../components/OrderModal'
 import Lightbox from '../components/Lightbox'
 import CheckInButton from '../components/CheckInButton'
+import DirectionsButton from '../components/DirectionsButton'
 
 function bookingConfig(b: Business): { label: string; mode: 'table' | 'class' | 'treatment' } {
   switch (b.category) {
@@ -403,15 +403,7 @@ export default function BusinessDetail() {
           >
             <Share2 size={18} />
           </button>
-          <a
-            href={`https://www.google.com/maps/search/?api=1&query=${b.lat},${b.lng}`}
-            target="_blank"
-            rel="noreferrer"
-            aria-label="Directions"
-            className="grid h-11 w-11 place-items-center rounded-full border border-stone-200 bg-white text-stone-600 transition hover:bg-stone-50"
-          >
-            <Navigation size={18} />
-          </a>
+          <DirectionsButton lat={b.lat} lng={b.lng} name={b.name} variant="icon" />
         </span>
       </div>
 
@@ -587,14 +579,7 @@ export default function BusinessDetail() {
                 className="h-full w-full"
               />
             </div>
-            <a
-              href={`https://www.google.com/maps/search/?api=1&query=${b.lat},${b.lng}`}
-              target="_blank"
-              rel="noreferrer"
-              className="mt-2 flex items-center justify-center gap-1.5 rounded-full border border-stone-200 py-2 text-sm font-semibold text-stone-700 transition hover:bg-stone-50"
-            >
-              <Navigation size={15} /> Get directions
-            </a>
+            <DirectionsButton lat={b.lat} lng={b.lng} name={b.name} variant="full" />
           </div>
 
           <div className="rounded-2xl border border-stone-200 bg-white p-5">
