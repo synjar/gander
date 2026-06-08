@@ -140,7 +140,7 @@ export default function Search() {
     return map
   }, [userLat, userLng, allBiz])
 
-  const [verifiedOnly, setVerifiedOnly] = useState(false)
+  const [verifiedOnly, setVerifiedOnly] = useState(true)
 
   const results = useMemo(() => {
     let list = allBiz.filter(
