@@ -648,6 +648,24 @@ export async function getBusinessProfile(businessId: string): Promise<BusinessPr
   }
 }
 
+/** Lightweight query: returns only business_id → hero_image_url for profiles
+ *  that have a custom hero set. Used by the store to override card thumbnails. */
+export async function listProfileHeroImages(): Promise<Map<string, string>> {
+  const map = new Map<string, string>()
+  if (!backendEnabled) return map
+  const { data } = await client()
+    .from('business_profiles')
+    .select('business_id, hero_image_url')
+    .not('hero_image_url', 'is', null)
+  if (!data) return map
+  for (const row of data) {
+    if (row.business_id && row.hero_image_url) {
+      map.set(row.business_id as string, row.hero_image_url as string)
+    }
+  }
+  return map
+}
+
 export async function saveBusinessProfile(
   businessId: string,
   profile: Partial<Omit<BusinessProfile, 'businessId'>>,

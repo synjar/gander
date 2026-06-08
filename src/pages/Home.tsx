@@ -1,8 +1,9 @@
-import { useState, useMemo, useEffect, type FormEvent } from 'react'
+import { useState, useMemo, useCallback, useEffect, type FormEvent } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import { Helmet } from 'react-helmet-async'
 import { Building2, Landmark, Search, Sparkles, Star, TrendingUp, Trophy } from 'lucide-react'
 import clsx from 'clsx'
+import type { Business } from '../data/types'
 import { businesses, businessesById } from '../data/businesses'
 import { deals } from '../data/deals'
 import { categories } from '../data/categories'
@@ -189,32 +190,40 @@ function CommunityStrip() {
 
 export default function Home() {
   const { city } = useCity()
-  const { hiddenBusinesses, liveBusinesses, importedBusinesses } = useStore()
+  const { hiddenBusinesses, liveBusinesses, importedBusinesses, profileHeroImages } = useStore()
   const isLondon = city.id === 'london'
+
+  // Apply merchant hero-image overrides so cards reflect the uploaded thumbnail
+  const applyHero = useCallback(
+    (b: Business) =>
+      profileHeroImages.has(b.id) ? { ...b, heroImage: profileHeroImages.get(b.id)! } : b,
+    [profileHeroImages],
+  )
+
   // Curated = hand-seeded + approved submissions (not OSM stubs)
   const curatedBiz = useMemo(
     () => [...businesses, ...liveBusinesses].filter(
       (b) => b.cityId === city.id && !hiddenBusinesses.includes(b.id),
-    ),
-    [liveBusinesses, hiddenBusinesses, city.id],
+    ).map(applyHero),
+    [liveBusinesses, hiddenBusinesses, city.id, applyHero],
   )
   // OSM venue stubs (non-attractions) shown in "More in city" section
   const osmCityBiz = useMemo(
     () => importedBusinesses.filter(
       (b) => b.cityId === city.id && !hiddenBusinesses.includes(b.id) && b.category !== 'attractions',
-    ),
-    [importedBusinesses, hiddenBusinesses, city.id],
+    ).map(applyHero),
+    [importedBusinesses, hiddenBusinesses, city.id, applyHero],
   )
   // Attractions shown in their own dedicated section
   const osmCityAttractions = useMemo(
     () => importedBusinesses.filter(
       (b) => b.cityId === city.id && !hiddenBusinesses.includes(b.id) && b.category === 'attractions',
-    ),
-    [importedBusinesses, hiddenBusinesses, city.id],
+    ).map(applyHero),
+    [importedBusinesses, hiddenBusinesses, city.id, applyHero],
   )
   const allBiz = useMemo(
-    () => [...businesses, ...liveBusinesses, ...importedBusinesses],
-    [liveBusinesses, importedBusinesses],
+    () => [...businesses, ...liveBusinesses, ...importedBusinesses].map(applyHero),
+    [liveBusinesses, importedBusinesses, applyHero],
   )
   const cityBiz = useMemo(
     () => allBiz.filter((b) => b.cityId === city.id && !hiddenBusinesses.includes(b.id)),

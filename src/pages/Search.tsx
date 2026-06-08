@@ -66,10 +66,15 @@ function MapPanel({ results }: { results: Business[] }) {
 export default function Search() {
   const [params, setParams] = useSearchParams()
   const { city } = useCity()
-  const { hiddenBusinesses, liveBusinesses, importedBusinesses } = useStore()
+  const { hiddenBusinesses, liveBusinesses, importedBusinesses, profileHeroImages } = useStore()
+  const applyHero = useCallback(
+    (b: Business) =>
+      profileHeroImages.has(b.id) ? { ...b, heroImage: profileHeroImages.get(b.id)! } : b,
+    [profileHeroImages],
+  )
   const allBiz = useMemo(
-    () => [...businesses, ...liveBusinesses, ...importedBusinesses],
-    [liveBusinesses, importedBusinesses],
+    () => [...businesses, ...liveBusinesses, ...importedBusinesses].map(applyHero),
+    [liveBusinesses, importedBusinesses, applyHero],
   )
   const q = params.get('q') ?? ''
   const category = params.get('category') ?? 'all'

@@ -615,6 +615,7 @@ function AnalyticsTab({ business }: { business: Business }) {
 
 function EditListingTab({ business }: { business: Business }) {
   const { configured } = useAuth()
+  const { reloadPublic } = useStore()
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
   const [saved, setSaved] = useState(false)
@@ -688,6 +689,8 @@ function EditListingTab({ business }: { business: Business }) {
       })
       setSaved(true)
       setTimeout(() => setSaved(false), 3000)
+      // Refresh hero image overrides so cards update immediately
+      void reloadPublic().catch(() => {/* non-fatal */})
     } catch (e) {
       setError(e instanceof Error ? e.message : 'Save failed')
     } finally {
@@ -1272,6 +1275,7 @@ export default function MerchantDashboard() {
     merchantDeals,
     ownedBusinesses,
     liveBusinesses,
+    profileHeroImages,
   } = useStore()
 
   // If the user has real owned businesses prefer those, otherwise show seed data
@@ -1284,11 +1288,14 @@ export default function MerchantDashboard() {
     }
   }, [ownedBusinesses, managedBusinessId, setManagedBusiness])
 
-  // Look up in seed data first, then live businesses
-  const business =
+  // Look up in seed data first, then live businesses; apply hero image override
+  const businessRaw =
     businessesById[managedBusinessId] ??
     liveBusinesses.find((b) => b.id === managedBusinessId) ??
     (ownedBusinesses[0] ?? businesses[0])
+  const business = profileHeroImages.has(businessRaw.id)
+    ? { ...businessRaw, heroImage: profileHeroImages.get(businessRaw.id)! }
+    : businessRaw
   const stats = statsFor(business)
   const reviews = reviewsFor(business.id)
   const venueDeals = dealsForBusinessId(business.id)

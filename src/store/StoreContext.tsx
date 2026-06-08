@@ -143,6 +143,10 @@ interface StoreValue extends Persisted {
   backendSynced: boolean
   /** OSM-imported stub listings (not yet claimed by owners) */
   importedBusinesses: Business[]
+  /** Map of businessId → custom hero image URL set by merchant */
+  profileHeroImages: Map<string, string>
+  /** Refresh all public data (businesses, reviews, profiles) from Supabase */
+  reloadPublic: () => Promise<void>
   /** Bulk-import OSM venues; returns inserted/updated/skippedClaimed counts */
   importBusinesses: (venues: import('../lib/overpass').OsmVenue[]) => Promise<{ inserted: number; updated: number; skippedClaimed: number }>
 }
@@ -188,6 +192,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
   const [hiddenBusinesses, setHiddenBusinesses] = useState<string[]>(initial.hiddenBusinesses)
   const [liveBusinesses, setLiveBusinesses] = useState<Business[]>([])
   const [importedBusinesses, setImportedBusinesses] = useState<Business[]>([])
+  const [profileHeroImages, setProfileHeroImages] = useState<Map<string, string>>(new Map())
   const [submissions, setSubmissions] = useState<BusinessSubmission[]>([])
 
   // Demo mode: persist everything to localStorage. (Backend mode persists per-row.)
@@ -230,13 +235,14 @@ export function StoreProvider({ children }: { children: ReactNode }) {
   // Public, globally-readable data (responses, merchant deals, all reviews).
   const reloadPublic = useCallback(async () => {
     if (!db.backendEnabled) return
-    const [resps, mdeals, revs, liveBiz, subs, imported] = await Promise.all([
+    const [resps, mdeals, revs, liveBiz, subs, imported, heroMap] = await Promise.all([
       db.listResponses(),
       db.listMerchantDeals(),
       db.listAllReviews(),
       db.listApprovedBusinesses(),
       db.listSubmissions(),
       db.listImportedBusinesses(),
+      db.listProfileHeroImages(),
     ])
     setReviewResponses(resps)
     setMerchantDeals(mdeals)
@@ -244,6 +250,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
     setLiveBusinesses(liveBiz)
     setSubmissions(subs)
     setImportedBusinesses(imported)
+    setProfileHeroImages(heroMap)
   }, [])
 
   const reloadUser = useCallback(async () => {
@@ -720,6 +727,8 @@ export function StoreProvider({ children }: { children: ReactNode }) {
     backendSynced: Boolean(backendUserId),
     importedBusinesses,
     importBusinesses,
+    profileHeroImages,
+    reloadPublic,
   }
 
   return <StoreContext.Provider value={value}>{children}</StoreContext.Provider>
