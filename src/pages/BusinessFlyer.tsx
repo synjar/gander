@@ -1,7 +1,14 @@
 import { useSearchParams } from 'react-router-dom'
 import { QRCodeCanvas } from 'qrcode.react'
-import { Printer, Sparkles } from 'lucide-react'
+import { Mail, Phone, Printer, Sparkles } from 'lucide-react'
 import { APP } from '../data'
+
+// Founder contact shown on the printed flyer so venues can reach you directly.
+const CONTACT = {
+  name: 'Jordan',
+  email: 'jordanhummel10@gmail.com',
+  phone: '+44 7749 358560',
+}
 
 /**
  * A print-ready leave-behind card for in-person merchant outreach. Open
@@ -78,6 +85,19 @@ export default function BusinessFlyer() {
 
           <div className="mt-5 inline-flex items-center gap-1.5 rounded-full bg-emerald-50 px-3 py-1.5 text-xs font-semibold text-emerald-700">
             <Sparkles size={13} /> Founding partners: 0% commission for 3 months
+          </div>
+
+          <div className="mt-5 border-t border-stone-100 pt-4 text-center text-sm">
+            <p className="font-semibold text-stone-900">Questions? Talk to {CONTACT.name}</p>
+            <p className="mt-1 flex flex-wrap items-center justify-center gap-x-2 gap-y-0.5 text-stone-600">
+              <a href={`mailto:${CONTACT.email}`} className="flex items-center gap-1 hover:text-brand-600">
+                <Mail size={13} /> {CONTACT.email}
+              </a>
+              <span className="text-stone-300">·</span>
+              <a href={`tel:${CONTACT.phone.replace(/\s+/g, '')}`} className="flex items-center gap-1 hover:text-brand-600">
+                <Phone size={13} /> {CONTACT.phone}
+              </a>
+            </p>
           </div>
         </div>
       </div>

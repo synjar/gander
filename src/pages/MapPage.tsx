@@ -92,6 +92,7 @@ export default function MapPage() {
           center={[city.lat, city.lng]}
           zoom={city.zoom}
           userLocation={userLocation}
+          cluster
           className="h-full w-full"
         />
       </div>
