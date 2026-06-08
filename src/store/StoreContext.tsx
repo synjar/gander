@@ -374,14 +374,17 @@ export function StoreProvider({ children }: { children: ReactNode }) {
 
   const statsFor = useCallback(
     (b: Business) => {
-      const mine = userReviews.filter((r) => r.businessId === b.id)
+      // Reviews added since the static baseline live in backendReviews (live app)
+      // or userReviews (demo). Either way, blend them onto the seed baseline.
+      const added = db.backendEnabled ? backendReviews : userReviews
+      const mine = added.filter((r) => r.businessId === b.id)
       if (mine.length === 0) return { rating: b.rating, reviewCount: b.reviewCount }
       const base = b.rating * b.reviewCount
       const sum = mine.reduce((s, r) => s + r.rating, 0)
       const count = b.reviewCount + mine.length
       return { rating: Math.round(((base + sum) / count) * 10) / 10, reviewCount: count }
     },
-    [userReviews],
+    [userReviews, backendReviews],
   )
 
   const isFavourite = useCallback((id: string) => favourites.includes(id), [favourites])

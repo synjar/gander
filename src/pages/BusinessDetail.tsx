@@ -190,6 +190,17 @@ export default function BusinessDetail() {
 
   const stats = statsFor(b)
   const reviews = reviewsFor(b.id)
+  // Average the per-criteria scores from real reviews; fall back to the static
+  // baseline only when no reviews carry breakdown scores (e.g. a brand-new venue).
+  const scoreAvg = (() => {
+    const scored = reviews.filter((r) => r.food || r.service || r.ambience || r.value)
+    if (scored.length === 0) return b.scores
+    const avg = (key: 'food' | 'service' | 'ambience' | 'value') => {
+      const vals = scored.map((r) => r[key]).filter((v): v is number => typeof v === 'number' && v > 0)
+      return vals.length ? vals.reduce((s, v) => s + v, 0) / vals.length : 0
+    }
+    return { food: avg('food'), service: avg('service'), ambience: avg('ambience'), value: avg('value') }
+  })()
   const bizDeals = dealsForBusinessId(b.id)
   const similar = businesses
     .filter((x) => x.category === b.category && x.id !== b.id)
@@ -505,10 +516,10 @@ export default function BusinessDetail() {
                 </span>
               </div>
               <div className="space-y-2.5 sm:pl-2">
-                <ScoreBar label="Food" value={b.scores.food} />
-                <ScoreBar label="Service" value={b.scores.service} />
-                <ScoreBar label="Ambience" value={b.scores.ambience} />
-                <ScoreBar label="Value" value={b.scores.value} />
+                <ScoreBar label="Food" value={scoreAvg.food} />
+                <ScoreBar label="Service" value={scoreAvg.service} />
+                <ScoreBar label="Ambience" value={scoreAvg.ambience} />
+                <ScoreBar label="Value" value={scoreAvg.value} />
               </div>
             </div>
 
