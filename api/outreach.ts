@@ -141,42 +141,50 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       if (!safeTown) return res.status(400).json({ error: 'invalid town' })
 
       // Match the venue's neighbourhood OR anything with the town in its address,
-      // so suburb-tagged venues (e.g. Broadwater) aren't missed.
+      // so suburb-tagged venues (e.g. Broadwater) aren't missed. ALL unclaimed
+      // venues are included (not just ones with an email) so the list doubles as
+      // a phone/website/walk-in worklist.
       const { data: venues, error } = await supa
         .from('imported_businesses')
-        .select('id, name, slug, email, category, neighbourhood, city_id, claimed')
+        .select('id, name, slug, email, phone, website, address, category, neighbourhood, city_id, claimed')
         .eq('claimed', false)
-        .not('email', 'is', null)
         .or(`neighbourhood.eq.${safeTown},address.ilike.*${safeTown}*`)
       if (error) throw error
 
-      const rows = (venues ?? [])
-        .filter((v) => (v.email as string)?.includes('@'))
-        .map((v) => ({
+      const rows = (venues ?? []).map((v) => {
+        const email = ((v.email as string | null) ?? '').trim().toLowerCase()
+        return {
           business_id: v.id,
           name: v.name,
-          email: (v.email as string).trim().toLowerCase(),
+          email: email.includes('@') ? email : null,
+          phone: ((v.phone as string | null) ?? '') || null,
+          website: ((v.website as string | null) ?? '') || null,
+          address: ((v.address as string | null) ?? '') || null,
           slug: v.slug,
           category: v.category,
-          town,
+          town: safeTown,
           city_id: v.city_id,
           status: 'pending',
-        }))
+        }
+      })
 
-      if (rows.length === 0) return res.status(200).json({ added: 0, message: 'No venues with emails found for this town. Import/re-import the town first.' })
+      if (rows.length === 0) return res.status(200).json({ added: 0, message: 'No venues found for this town. Import the town on the OSM panel above first.' })
 
+      // Dedupe on the venue (business_id) — email may be null, so it can't be the key.
+      // ignoreDuplicates keeps any status you've already set on existing leads.
       const { error: upErr } = await supa
         .from('outreach_leads')
-        .upsert(rows, { onConflict: 'email', ignoreDuplicates: true })
+        .upsert(rows, { onConflict: 'business_id', ignoreDuplicates: true })
       if (upErr) throw upErr
 
-      return res.status(200).json({ added: rows.length })
+      const withEmail = rows.filter((r) => r.email).length
+      return res.status(200).json({ added: rows.length, withEmail })
     }
 
     // --- LIST / STATS ------------------------------------------------------
     if (action === 'list' || action === 'stats') {
       const { town } = req.body as { town?: string }
-      let q = supa.from('outreach_leads').select('id, name, email, slug, category, town, status, sent_count, last_sent_at').order('name')
+      let q = supa.from('outreach_leads').select('id, name, email, phone, website, address, slug, category, town, status, sent_count, last_sent_at').order('name')
       if (town) q = q.eq('town', town)
       const { data: leads, error } = await q
       if (error) throw error
@@ -188,6 +196,17 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       }
 
       return res.status(200).json({ stats, leads: action === 'list' ? leads : undefined })
+    }
+
+    // --- SET STATUS (manual worklist progress) -----------------------------
+    if (action === 'setStatus') {
+      const { leadId, status } = req.body as { leadId?: string; status?: string }
+      const allowed = ['pending', 'contacted', 'interested', 'claimed', 'not_interested', 'suppressed']
+      if (!leadId || !status || !allowed.includes(status)) {
+        return res.status(400).json({ error: 'leadId and a valid status are required' })
+      }
+      await supa.from('outreach_leads').update({ status }).eq('id', leadId)
+      return res.status(200).json({ ok: true })
     }
 
     // --- SUPPRESS (manual) -------------------------------------------------
@@ -208,8 +227,8 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       const { town, limit } = req.body as { town?: string; limit?: number }
       const batch = Math.min(Math.max(1, limit ?? 12), MAX_BATCH)
 
-      // Pull pending leads for the town
-      let q = supa.from('outreach_leads').select('id, name, email, slug, category, town').eq('status', 'pending').limit(batch)
+      // Pull pending leads for the town that actually have an email address
+      let q = supa.from('outreach_leads').select('id, name, email, slug, category, town').eq('status', 'pending').not('email', 'is', null).limit(batch)
       if (town) q = q.eq('town', town)
       const { data: leads, error } = await q
       if (error) throw error

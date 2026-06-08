@@ -62,21 +62,36 @@ in inboxes — including your **booking confirmations and voucher receipts**.
 -- Capture emails on imported venues
 alter table public.imported_businesses add column if not exists email text;
 
--- Outreach leads (per-business status tracking)
+-- Outreach leads (per-business worklist + status tracking).
+-- email is OPTIONAL so the list works as a phone/website/visit worklist too;
+-- leads are de-duped on business_id (the venue), not email.
 create table if not exists public.outreach_leads (
   id           uuid primary key default gen_random_uuid(),
-  business_id  uuid references public.imported_businesses(id) on delete set null,
+  business_id  uuid unique references public.imported_businesses(id) on delete set null,
   name         text not null,
-  email        text not null unique,
+  email        text,
+  phone        text,
+  website      text,
+  address      text,
   slug         text,
   category     text,
   town         text,
   city_id      text,
-  status       text not null default 'pending', -- pending|sent|opened|replied|claimed|suppressed|bounced
+  status       text not null default 'pending', -- pending|contacted|sent|interested|claimed|not_interested|suppressed
   sent_count   int  not null default 0,
   last_sent_at timestamptz,
   created_at   timestamptz not null default now()
 );
+
+-- Already ran an earlier version of this table (email NOT NULL)? Run this delta:
+--   alter table public.outreach_leads alter column email drop not null;
+--   alter table public.outreach_leads drop constraint if exists outreach_leads_email_key;
+--   alter table public.outreach_leads add column if not exists phone text;
+--   alter table public.outreach_leads add column if not exists website text;
+--   alter table public.outreach_leads add column if not exists address text;
+--   do $$ begin
+--     alter table public.outreach_leads add constraint outreach_leads_business_id_key unique (business_id);
+--   exception when duplicate_object then null; end $$;
 
 -- Suppression list (never email these again)
 create table if not exists public.outreach_suppressions (
@@ -116,28 +131,34 @@ to it.
 
 ## Running a campaign (e.g. Worthing)
 
-1. **Import the town's venues** with emails: Admin → OSM import panel, import
-   West Sussex. The import now captures `email`/`contact:email` from OSM (≈10–15%
-   of venues have one — that's your initial addressable list).
+The list works as a **phone / website / walk-in worklist** with no email setup at
+all. Email sending is an optional extra (the collapsed section at the bottom of
+the panel) that only lights up once the outreach domain is configured.
+
+1. **Import the town's venues:** Admin → OSM import panel, import West Sussex. The
+   import captures each venue's `phone`, `website` and (where present) `email`.
 2. **Unlock the panel:** Admin → Business outreach → enter `OUTREACH_ADMIN_SECRET`.
-3. **Build list:** set Town = `Worthing`, click **Build list**. This creates leads
-   from imported Worthing venues that have an email (matching the neighbourhood or
-   anything with "Worthing" in its address).
-4. **Send a batch:** set a small batch size, click **Send next batch**. Start
-   small (5–10/day) and watch for replies/bounces before ramping.
-5. **Monitor:** the stats row and lead table show pending / sent / replied /
-   claimed / suppressed. Re-run **Send next batch** over following days.
+3. **Build list:** set Town = `Worthing`, click **Build list**. This pulls every
+   unclaimed Worthing venue (matching the neighbourhood or anything with "Worthing"
+   in its address) with its phone, website and address.
+4. **Work the list:** call / visit / use their website contact form. Tap each
+   lead's status as you go: **To contact → Contacted → Interested → Claimed**
+   (or *Not interested*). Use **Export CSV** if you'd rather work it offline.
+5. **(Optional) Email:** once the outreach domain is set up, open *Automated email
+   outreach* and **Send next batch** to the venues that have an email — start small
+   (5–10/day) and watch for replies before ramping.
 
 ### Lead statuses
 
 | Status | Meaning |
 | ------ | ------- |
-| `pending` | In the list, not yet emailed |
-| `sent` | Invite delivered to the provider |
-| `replied` | They replied (set manually for now) |
-| `claimed` | They claimed their listing (set manually for now) |
-| `suppressed` | Unsubscribed or manually suppressed — never emailed again |
-| `bounced` | Hard bounce (set manually for now) |
+| `pending` | On the list, not yet contacted |
+| `contacted` | You've called / messaged / visited |
+| `sent` | A cold invite email was sent (auto, optional email flow) |
+| `interested` | They're keen — follow up |
+| `claimed` | They claimed their listing 🎉 |
+| `not_interested` | Said no — leave them be |
+| `suppressed` | Unsubscribed / do-not-contact — never emailed again |
 
 ---
 
