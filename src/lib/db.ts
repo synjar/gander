@@ -984,6 +984,86 @@ export async function getFollowingCount(userId: string): Promise<number> {
   return count ?? 0
 }
 
+// --- Referral rewards -------------------------------------------------------
+
+export interface ReferralReward {
+  id: string
+  discountPct: number
+  expiresAt: number // ms timestamp
+  createdAt: number
+}
+
+/** Fetch unused, non-expired referral rewards for a user. */
+export async function getReferralRewards(userId: string): Promise<ReferralReward[]> {
+  if (!backendEnabled) return []
+  const { data } = await client()
+    .from('referral_rewards')
+    .select('id, discount_pct, expires_at, created_at')
+    .eq('user_id', userId)
+    .eq('used', false)
+    .gt('expires_at', new Date().toISOString())
+    .order('created_at', { ascending: true })
+  return (data ?? []).map((r) => ({
+    id: r.id as string,
+    discountPct: r.discount_pct as number,
+    expiresAt: new Date(r.expires_at as string).getTime(),
+    createdAt: new Date(r.created_at as string).getTime(),
+  }))
+}
+
+/** Mark a referral reward as used (call after successful checkout). */
+export async function useReferralReward(rewardId: string): Promise<void> {
+  if (!backendEnabled) return
+  const { error } = await client()
+    .from('referral_rewards')
+    .update({ used: true, used_at: new Date().toISOString() })
+    .eq('id', rewardId)
+  if (error) throw error
+}
+
+/**
+ * Returns venues where the user had a confirmed booking in the past, or bought
+ * a voucher, but has not yet left a review — used to power the review nudge.
+ */
+export async function getPendingReviewVenues(
+  userId: string,
+): Promise<{ businessId: string; businessName: string; source: 'booking' | 'voucher' }[]> {
+  if (!backendEnabled) return []
+  const today = new Date().toISOString().slice(0, 10)
+  const [bookingsRes, vouchersRes, reviewsRes] = await Promise.all([
+    client()
+      .from('bookings')
+      .select('business_id, business_name')
+      .eq('user_id', userId)
+      .eq('status', 'confirmed')
+      .lt('date', today),
+    client()
+      .from('vouchers')
+      .select('business_id, business_name')
+      .eq('user_id', userId),
+    client()
+      .from('reviews')
+      .select('business_id')
+      .eq('author_id', userId),
+  ])
+  const reviewedIds = new Set((reviewsRes.data ?? []).map((r) => r.business_id as string))
+  const results: { businessId: string; businessName: string; source: 'booking' | 'voucher' }[] = []
+  const seen = new Set<string>()
+  for (const b of bookingsRes.data ?? []) {
+    if (!reviewedIds.has(b.business_id as string) && !seen.has(b.business_id as string)) {
+      results.push({ businessId: b.business_id as string, businessName: b.business_name as string, source: 'booking' })
+      seen.add(b.business_id as string)
+    }
+  }
+  for (const v of vouchersRes.data ?? []) {
+    if (!reviewedIds.has(v.business_id as string) && !seen.has(v.business_id as string)) {
+      results.push({ businessId: v.business_id as string, businessName: v.business_name as string, source: 'voucher' })
+      seen.add(v.business_id as string)
+    }
+  }
+  return results
+}
+
 // --- Referrals --------------------------------------------------------------
 
 export async function recordReferral(referrerId: string, referredId: string): Promise<void> {

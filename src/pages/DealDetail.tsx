@@ -1,10 +1,13 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { Link, useParams } from 'react-router-dom'
-import { Check, ChevronRight, Clock, MapPin, ShieldCheck, Ticket } from 'lucide-react'
+import { Check, ChevronRight, Clock, Gift, MapPin, ShieldCheck, Ticket } from 'lucide-react'
 import { businessesById } from '../data/businesses'
 import { categoryMap } from '../data/categories'
 import { discountPct, formatPrice } from '../lib/format'
 import { useStore } from '../store/StoreContext'
+import { useAuth } from '../auth/AuthContext'
+import * as db from '../lib/db'
+import type { ReferralReward } from '../lib/db'
 import type { Voucher } from '../data/types'
 import SmartImage from '../components/SmartImage'
 import Stars from '../components/Stars'
@@ -13,9 +16,25 @@ import PaymentForm from '../components/PaymentForm'
 export default function DealDetail() {
   const { id } = useParams()
   const { buyVoucher, dealById } = useStore()
+  const { user, configured } = useAuth()
   const deal = id ? dealById(id) : undefined
   const [voucher, setVoucher] = useState<Voucher | null>(null)
   const [paying, setPaying] = useState(false)
+  const [rewards, setRewards] = useState<ReferralReward[]>([])
+  const [applyReward, setApplyReward] = useState(false)
+
+  useEffect(() => {
+    if (!configured || user.isGuest || !user.id) return
+    db.getReferralRewards(user.id).then((r) => {
+      setRewards(r)
+      if (r.length > 0) setApplyReward(true) // auto-apply if available
+    })
+  }, [configured, user.id, user.isGuest])
+
+  const activeReward = applyReward ? rewards[0] : undefined
+  const finalPrice = activeReward
+    ? Math.round(deal ? deal.dealPrice * (1 - activeReward.discountPct / 100) : 0)
+    : deal?.dealPrice ?? 0
 
   if (!deal) {
     return (
@@ -31,7 +50,6 @@ export default function DealDetail() {
   const biz = businessesById[deal.businessId]
   const cat = biz ? categoryMap[biz.category] : undefined
   const pct = discountPct(deal.originalPrice, deal.dealPrice)
-  const saving = deal.originalPrice - deal.dealPrice
 
   return (
     <div className="mx-auto max-w-5xl px-4 py-6">
@@ -137,9 +155,13 @@ export default function DealDetail() {
               </div>
             ) : paying ? (
               <PaymentForm
-                amount={deal.dealPrice}
+                amount={finalPrice}
                 businessId={deal.businessId}
-                onPaid={() => {
+                onPaid={async () => {
+                  if (activeReward) {
+                    await db.useReferralReward(activeReward.id).catch(() => {/* non-fatal */})
+                    setRewards((prev) => prev.filter((r) => r.id !== activeReward.id))
+                  }
                   setVoucher(buyVoucher(deal, biz?.name ?? 'the venue'))
                   setPaying(false)
                 }}
@@ -149,15 +171,35 @@ export default function DealDetail() {
               <>
                 <div className="flex items-end gap-2">
                   <span className="font-display text-4xl font-semibold text-stone-900">
-                    {formatPrice(deal.dealPrice)}
+                    {formatPrice(activeReward ? finalPrice : deal.dealPrice)}
                   </span>
                   <span className="mb-1 text-lg text-stone-400 line-through">
                     {formatPrice(deal.originalPrice)}
                   </span>
                 </div>
                 <p className="mt-1 text-sm font-semibold text-emerald-600">
-                  You save {formatPrice(saving)} ({pct}%)
+                  You save {formatPrice(deal.originalPrice - (activeReward ? finalPrice : deal.dealPrice))} ({activeReward ? `${deal.originalPrice > 0 ? Math.round((1 - finalPrice / deal.originalPrice) * 100) : 0}` : pct}%)
                 </p>
+
+                {/* Referral reward toggle */}
+                {rewards.length > 0 && (
+                  <div className="mt-3 flex items-center gap-3 rounded-xl border border-emerald-200 bg-emerald-50 px-3 py-2.5">
+                    <Gift size={16} className="shrink-0 text-emerald-600" />
+                    <div className="min-w-0 flex-1">
+                      <p className="text-sm font-semibold text-stone-900">{rewards[0].discountPct}% referral discount</p>
+                      <p className="text-xs text-stone-500">
+                        Expires {new Date(rewards[0].expiresAt).toLocaleDateString('en-GB', { day: 'numeric', month: 'short' })}
+                      </p>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => setApplyReward((v) => !v)}
+                      className={`relative h-5 w-9 rounded-full transition-colors ${applyReward ? 'bg-emerald-500' : 'bg-stone-300'}`}
+                    >
+                      <span className={`absolute top-0.5 h-4 w-4 rounded-full bg-white shadow transition-transform ${applyReward ? 'translate-x-4' : 'translate-x-0.5'}`} />
+                    </button>
+                  </div>
+                )}
 
                 <div className="mt-4 space-y-2 border-y border-stone-100 py-4 text-sm">
                   <p className="flex items-center justify-between text-stone-500">
@@ -180,7 +222,7 @@ export default function DealDetail() {
                   onClick={() => setPaying(true)}
                   className="mt-4 w-full rounded-full bg-brand-500 py-3.5 text-sm font-semibold text-white transition hover:bg-brand-600"
                 >
-                  Buy voucher · {formatPrice(deal.dealPrice)}
+                  Buy voucher · {formatPrice(activeReward ? finalPrice : deal.dealPrice)}
                 </button>
                 <p className="mt-3 flex items-center justify-center gap-1.5 text-xs text-stone-400">
                   <ShieldCheck size={14} className="text-emerald-500" /> Free cancellation within 24

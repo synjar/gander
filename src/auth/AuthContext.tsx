@@ -8,6 +8,7 @@ import {
 import type { Session } from '@supabase/supabase-js'
 import { supabase, isSupabaseConfigured } from '../lib/supabase'
 import { currentUser, avatar } from '../data/users'
+import { findUserByReferralCode, recordReferral } from '../lib/db'
 
 export interface AuthUser {
   id: string
@@ -80,12 +81,24 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     },
     async signUp(name, email, password) {
       if (!isSupabaseConfigured || !supabase) return { error: DEMO_NOTICE }
-      const { error } = await supabase.auth.signUp({
+      const { data, error } = await supabase.auth.signUp({
         email,
         password,
         options: { data: { name, avatar: avatar(name) } },
       })
-      return { error: error?.message }
+      if (error) return { error: error.message }
+      // If the user arrived via a referral link, record it now.
+      // The DB trigger on `referrals` will automatically create a 15%-off reward
+      // for the referrer (expires in 90 days).
+      const refCode = localStorage.getItem('gander.ref')
+      if (refCode && data.user?.id) {
+        const referrerId = await findUserByReferralCode(refCode)
+        if (referrerId && referrerId !== data.user.id) {
+          await recordReferral(referrerId, data.user.id)
+          localStorage.removeItem('gander.ref')
+        }
+      }
+      return {}
     },
     async signOut() {
       if (supabase) await supabase.auth.signOut()
