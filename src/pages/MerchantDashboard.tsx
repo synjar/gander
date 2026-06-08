@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useCallback, useEffect, useState } from 'react'
 import { Link } from 'react-router-dom'
 import {
   BarChart3,
@@ -7,19 +7,29 @@ import {
   ExternalLink,
   Eye,
   Heart,
+  Loader2,
   MessageSquare,
   Plus,
+  QrCode,
   Star,
   Tag,
+  Trash2,
+  UserPlus,
+  Users,
+  X,
 } from 'lucide-react'
 import clsx from 'clsx'
 import { businesses, businessesById } from '../data/businesses'
 import { useStore } from '../store/StoreContext'
+import { useAuth } from '../auth/AuthContext'
 import type { Business, Review } from '../data/types'
 import { discountPct, formatPrice } from '../lib/format'
+import * as db from '../lib/db'
+import type { StaffMember } from '../lib/db'
 import Avatar from '../components/Avatar'
 import Stars from '../components/Stars'
 import SmartImage from '../components/SmartImage'
+import ScanAndRedeem from '../components/ScanAndRedeem'
 
 function StatCard({
   icon: Icon,
@@ -229,6 +239,152 @@ function DealCreator({ business }: { business: Business }) {
   )
 }
 
+// ---- Staff manager panel ---------------------------------------------------
+
+function StaffManager({ businessId, businessName }: { businessId: string; businessName: string }) {
+  const { configured } = useAuth()
+  const [staff, setStaff] = useState<StaffMember[]>([])
+  const [loading, setLoading] = useState(false)
+  const [newEmail, setNewEmail] = useState('')
+  const [newName, setNewName] = useState('')
+  const [addBusy, setAddBusy] = useState(false)
+  const [addError, setAddError] = useState('')
+  const [showForm, setShowForm] = useState(false)
+
+  const load = useCallback(() => {
+    if (!configured || !db.backendEnabled) return
+    setLoading(true)
+    db.listStaff(businessId)
+      .then(setStaff)
+      .catch(console.error)
+      .finally(() => setLoading(false))
+  }, [businessId, configured])
+
+  useEffect(() => { load() }, [load])
+
+  async function handleAdd() {
+    if (!newEmail.trim() || !newName.trim()) return
+    setAddBusy(true)
+    setAddError('')
+    try {
+      await db.addStaffMember(businessId, businessName, newEmail.trim().toLowerCase(), newName.trim())
+      setNewEmail('')
+      setNewName('')
+      setShowForm(false)
+      load()
+    } catch (err) {
+      setAddError(err instanceof Error ? err.message : String(err))
+    } finally {
+      setAddBusy(false)
+    }
+  }
+
+  async function handleRemove(id: string) {
+    await db.removeStaffMember(id).catch(console.error)
+    load()
+  }
+
+  const staffLink = `${window.location.origin}/staff/scan`
+
+  return (
+    <div className="rounded-2xl border border-stone-200 bg-white p-4">
+      <div className="flex items-center justify-between">
+        <h3 className="flex items-center gap-1.5 font-semibold text-stone-900">
+          <Users size={16} className="text-brand-500" /> Staff access
+          {staff.length > 0 && (
+            <span className="ml-1 rounded-full bg-stone-100 px-1.5 py-0.5 text-xs text-stone-500">
+              {staff.length}
+            </span>
+          )}
+        </h3>
+        <button
+          onClick={() => setShowForm((s) => !s)}
+          className="flex items-center gap-1 rounded-full border border-stone-200 px-2.5 py-1 text-xs font-semibold text-stone-700 hover:bg-stone-50"
+        >
+          <UserPlus size={13} /> Add
+        </button>
+      </div>
+
+      <p className="mt-1 text-xs text-stone-500">
+        Staff can scan vouchers at{' '}
+        <a href={staffLink} target="_blank" rel="noreferrer" className="font-mono text-brand-600 hover:underline">
+          /staff/scan
+        </a>
+      </p>
+
+      {!configured && (
+        <p className="mt-2 text-xs text-amber-600">Connect Supabase to enable staff accounts.</p>
+      )}
+
+      {showForm && (
+        <div className="mt-3 space-y-2 rounded-xl border border-stone-200 bg-stone-50 p-3">
+          <input
+            value={newName}
+            onChange={(e) => setNewName(e.target.value)}
+            placeholder="Staff name (e.g. Jordan)"
+            className="w-full rounded-lg border border-stone-200 bg-white px-3 py-2 text-sm outline-none focus:border-brand-400"
+          />
+          <input
+            type="email"
+            value={newEmail}
+            onChange={(e) => setNewEmail(e.target.value)}
+            placeholder="Their email address"
+            className="w-full rounded-lg border border-stone-200 bg-white px-3 py-2 text-sm outline-none focus:border-brand-400"
+          />
+          {addError && <p className="text-xs text-rose-600">{addError}</p>}
+          <div className="flex gap-2">
+            <button
+              onClick={handleAdd}
+              disabled={addBusy || !newEmail.trim() || !newName.trim()}
+              className="flex flex-1 items-center justify-center gap-1.5 rounded-full bg-brand-500 py-2 text-xs font-semibold text-white hover:bg-brand-600 disabled:opacity-40"
+            >
+              {addBusy ? <Loader2 size={12} className="animate-spin" /> : <UserPlus size={12} />}
+              Add staff member
+            </button>
+            <button
+              onClick={() => setShowForm(false)}
+              className="rounded-full border border-stone-200 px-3 py-2 text-xs font-medium text-stone-600 hover:bg-stone-50"
+            >
+              Cancel
+            </button>
+          </div>
+        </div>
+      )}
+
+      {loading ? (
+        <div className="mt-3 flex justify-center py-4">
+          <Loader2 size={18} className="animate-spin text-stone-400" />
+        </div>
+      ) : staff.length === 0 ? (
+        <p className="mt-3 text-xs text-stone-400">
+          No staff added yet. Add a team member so they can scan vouchers on their phone.
+        </p>
+      ) : (
+        <ul className="mt-3 divide-y divide-stone-100">
+          {staff.map((s) => (
+            <li key={s.id} className="flex items-center gap-3 py-2">
+              <Avatar name={s.name} size={28} />
+              <div className="min-w-0 flex-1">
+                <p className="text-sm font-medium text-stone-900">{s.name}</p>
+                <p className="truncate text-xs text-stone-400">{s.email}</p>
+              </div>
+              <button
+                onClick={() => handleRemove(s.id)}
+                className="rounded-full p-1 text-stone-400 hover:bg-rose-50 hover:text-rose-500"
+                title="Remove staff member"
+              >
+                <Trash2 size={14} />
+              </button>
+            </li>
+          ))}
+        </ul>
+      )}
+    </div>
+  )
+}
+
+// ---- Main dashboard --------------------------------------------------------
+
 export default function MerchantDashboard() {
   const {
     managedBusinessId,
@@ -250,6 +406,8 @@ export default function MerchantDashboard() {
   const views = stats.reviewCount * 37 + 1840
   const saves = Math.round(stats.reviewCount * 0.9)
 
+  const [showScanner, setShowScanner] = useState(false)
+
   return (
     <div className="mx-auto max-w-6xl px-4 py-6">
       <div className="flex flex-wrap items-center justify-between gap-3">
@@ -257,10 +415,37 @@ export default function MerchantDashboard() {
           <BarChart3 size={18} className="text-brand-500" />
           <span className="font-semibold text-stone-900">Owner dashboard</span>
         </div>
-        <Link to="/business" className="text-sm font-medium text-brand-600 hover:underline">
-          ← For-business home
-        </Link>
+        <div className="flex items-center gap-2">
+          <button
+            onClick={() => setShowScanner(true)}
+            className="flex items-center gap-1.5 rounded-full bg-brand-500 px-4 py-2 text-sm font-semibold text-white shadow-sm hover:bg-brand-600"
+          >
+            <QrCode size={15} /> Scan voucher
+          </button>
+          <Link to="/business" className="text-sm font-medium text-brand-600 hover:underline">
+            ← For-business home
+          </Link>
+        </div>
       </div>
+
+      {/* Scanner modal */}
+      {showScanner && (
+        <div className="fixed inset-0 z-50 flex items-end justify-center bg-black/60 sm:items-center">
+          <div className="w-full max-w-sm rounded-t-3xl bg-white p-6 sm:rounded-3xl">
+            <div className="mb-4 flex items-center justify-between">
+              <span className="text-sm font-medium text-stone-500">{business.name}</span>
+              <button
+                onClick={() => setShowScanner(false)}
+                className="rounded-full p-1.5 text-stone-400 hover:bg-stone-100"
+              >
+                <X size={18} />
+              </button>
+            </div>
+            <ScanAndRedeem businessId={business.id} title="Scan customer voucher" />
+          </div>
+        </div>
+      )}
+
 
       {/* Venue header */}
       <div className="mt-4 flex flex-col gap-4 rounded-2xl border border-stone-200 bg-white p-4 sm:flex-row sm:items-center">
@@ -329,9 +514,10 @@ export default function MerchantDashboard() {
           </div>
         </section>
 
-        {/* Deals manager */}
+        {/* Deals manager + staff */}
         <aside className="space-y-4">
           <DealCreator business={business} />
+          <StaffManager businessId={business.id} businessName={business.name} />
           <div className="rounded-2xl border border-stone-200 bg-white p-4">
             <h3 className="flex items-center gap-1.5 font-semibold text-stone-900">
               <Tag size={16} className="text-brand-500" /> Live deals ({venueDeals.length})

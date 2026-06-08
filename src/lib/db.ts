@@ -412,3 +412,62 @@ export async function listAllReviews(): Promise<Review[]> {
     visitType: r.visit_type ?? undefined,
   }))
 }
+
+// --- Staff management -------------------------------------------------------
+
+export interface StaffMember {
+  id: string
+  businessId: string
+  businessName: string
+  email: string
+  name: string
+  createdAt: number
+}
+
+export async function listStaff(businessId: string): Promise<StaffMember[]> {
+  const { data, error } = await client()
+    .from('staff_members')
+    .select('*')
+    .eq('business_id', businessId)
+    .order('created_at', { ascending: false })
+  if (error) throw error
+  return (data ?? []).map((r) => ({
+    id: r.id,
+    businessId: r.business_id,
+    businessName: r.business_name,
+    email: r.email,
+    name: r.name,
+    createdAt: new Date(r.created_at).getTime(),
+  }))
+}
+
+export async function addStaffMember(
+  businessId: string,
+  businessName: string,
+  email: string,
+  name: string,
+): Promise<void> {
+  const { error } = await client()
+    .from('staff_members')
+    .insert({ business_id: businessId, business_name: businessName, email, name })
+  if (error) throw error
+}
+
+export async function removeStaffMember(id: string): Promise<void> {
+  const { error } = await client()
+    .from('staff_members')
+    .delete()
+    .eq('id', id)
+  if (error) throw error
+}
+
+/** Returns the business this email is registered as staff for, or null. */
+export async function getStaffBusiness(email: string): Promise<{ businessId: string; businessName: string } | null> {
+  const { data, error } = await client()
+    .from('staff_members')
+    .select('business_id, business_name')
+    .eq('email', email)
+    .maybeSingle()
+  if (error || !data) return null
+  return { businessId: data.business_id as string, businessName: data.business_name as string }
+}

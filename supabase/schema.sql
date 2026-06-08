@@ -232,3 +232,21 @@ create policy "Authenticated users can read submissions"
 drop policy if exists "Authenticated users can update submissions" on public.business_submissions;
 create policy "Authenticated users can update submissions"
   on public.business_submissions for update to authenticated using (true);
+
+-- Staff members --------------------------------------------------------------
+create table if not exists public.staff_members (
+  id           uuid primary key default gen_random_uuid(),
+  business_id  text not null,
+  business_name text not null,
+  invited_by   uuid references auth.users(id) on delete set null,
+  email        text not null,
+  name         text not null default '',
+  created_at   timestamptz not null default now(),
+  unique (business_id, email)
+);
+
+alter table public.staff_members enable row level security;
+
+drop policy if exists "Public access to staff_members" on public.staff_members;
+create policy "Public access to staff_members"
+  on public.staff_members for all using (true) with check (true);
