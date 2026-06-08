@@ -386,6 +386,7 @@ export default function Search() {
                     business={b}
                     showRank
                     distance={km != null ? formatDistance(km) : undefined}
+                    searchQuery={q}
                   />
                 )
               })}

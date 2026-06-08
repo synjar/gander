@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react'
-import { Link, useParams } from 'react-router-dom'
+import { Link, useParams, useSearchParams } from 'react-router-dom'
 import { Helmet } from 'react-helmet-async'
 import {
   Award,
@@ -124,12 +124,15 @@ export default function BusinessDetail() {
   const [profile, setProfile] = useState<db.BusinessProfile | null>(null)
   const [lightboxIndex, setLightboxIndex] = useState<number | null>(null)
 
+  const [searchParams] = useSearchParams()
+  const fromSearch = searchParams.get('q') || undefined
+
   useEffect(() => {
     if (rawB?.id) {
       db.getBusinessProfile(rawB.id).then(setProfile).catch(() => setProfile(null))
-      void db.logBusinessEvent(rawB.id, 'view') // engagement analytics (fire-and-forget)
+      void db.logBusinessEvent(rawB.id, 'view', fromSearch) // engagement analytics (fire-and-forget)
     }
-  }, [rawB?.id])
+  }, [rawB?.id, fromSearch])
 
   // Convert custom hours map → OpeningHours[] and compute openNow
   const DAYS = ['Monday','Tuesday','Wednesday','Thursday','Friday','Saturday','Sunday']

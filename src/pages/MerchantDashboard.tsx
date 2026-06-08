@@ -529,6 +529,7 @@ function AnalyticsTab({ business }: { business: Business }) {
   const [revenueTrend, setRevenueTrend] = useState<db.MonthlyRevenue[]>([])
   const [dayBookings, setDayBookings] = useState<db.DayBookings[]>([])
   const [engagement, setEngagement] = useState<db.BusinessEngagement | null>(null)
+  const [searchTerms, setSearchTerms] = useState<{ query: string; count: number }[]>([])
   const [loading, setLoading] = useState(true)
 
   useEffect(() => {
@@ -537,10 +538,12 @@ function AnalyticsTab({ business }: { business: Business }) {
       db.getVoucherRevenueTrend(bid),
       db.getBookingsByDayOfWeek(bid),
       db.getBusinessEngagement(bid, 30),
-    ]).then(([rev, days, eng]) => {
+      db.getSearchTerms(bid, 30),
+    ]).then(([rev, days, eng, terms]) => {
       setRevenueTrend(rev)
       setDayBookings(days)
       setEngagement(eng)
+      setSearchTerms(terms)
       setLoading(false)
     })
   }, [business.id])
@@ -567,6 +570,29 @@ function AnalyticsTab({ business }: { business: Business }) {
 
   return (
     <div className="mt-6 space-y-6">
+      {/* ROI banner — "what Gander has driven for you" */}
+      <div className="rounded-2xl bg-gradient-to-br from-brand-500 to-orange-600 p-5 text-white shadow-sm">
+        <p className="text-sm font-medium text-white/80">What Gander has driven for you</p>
+        <div className="mt-2.5 flex flex-wrap items-end gap-x-8 gap-y-3">
+          <div>
+            <p className="font-display text-3xl font-bold leading-none">£{(totalRevenue / 100).toLocaleString('en-GB')}</p>
+            <p className="mt-1 text-xs text-white/80">voucher sales · 6 mo</p>
+          </div>
+          <div>
+            <p className="font-display text-3xl font-bold leading-none">{totalBookings.toLocaleString('en-GB')}</p>
+            <p className="mt-1 text-xs text-white/80">bookings</p>
+          </div>
+          <div>
+            <p className="font-display text-3xl font-bold leading-none">{engagement ? engagement.views.toLocaleString('en-GB') : '—'}</p>
+            <p className="mt-1 text-xs text-white/80">profile views · 30 days</p>
+          </div>
+          <div>
+            <p className="font-display text-3xl font-bold leading-none">{engagement ? engagement.actions.toLocaleString('en-GB') : '—'}</p>
+            <p className="mt-1 text-xs text-white/80">customer actions · 30 days</p>
+          </div>
+        </div>
+      </div>
+
       {/* KPI strip */}
       <div className="grid grid-cols-2 gap-4 sm:grid-cols-3">
         <div className="rounded-2xl border border-stone-200 bg-white p-4 text-center">
@@ -634,6 +660,24 @@ function AnalyticsTab({ business }: { business: Business }) {
           </>
         )}
       </div>
+
+      {/* What people searched to find you */}
+      {searchTerms.length > 0 && (
+        <div className="rounded-2xl border border-stone-200 bg-white p-5">
+          <h3 className="font-semibold text-stone-900">What people searched to find you</h3>
+          <p className="mt-0.5 text-sm text-stone-500">
+            The terms customers searched before opening your listing (last 30 days).
+          </p>
+          <div className="mt-3 flex flex-wrap gap-2">
+            {searchTerms.map((t) => (
+              <span key={t.query} className="inline-flex items-center gap-1.5 rounded-full bg-stone-100 px-3 py-1 text-sm text-stone-700">
+                {t.query}
+                <span className="rounded-full bg-white px-1.5 text-xs font-semibold text-stone-500">{t.count}</span>
+              </span>
+            ))}
+          </div>
+        </div>
+      )}
 
       {/* Revenue trend */}
       <div className="rounded-2xl border border-stone-200 bg-white p-5">

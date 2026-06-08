@@ -36,8 +36,11 @@ create table if not exists public.business_events (
   id          bigint generated always as identity primary key,
   business_id text not null,
   type        text not null,           -- view|phone|directions|website|menu|share
+  query       text,                    -- search term that surfaced the listing (view events)
   created_at  timestamptz not null default now()
 );
+-- If the table already existed without it:
+alter table public.business_events add column if not exists query text;
 create index if not exists business_events_biz_time_idx
   on public.business_events (business_id, created_at desc);
 
@@ -82,15 +85,40 @@ the new build is deployed.
 - **Backfill:** there's no historical data — analytics begin from the moment the
   table exists. The first day will read low; that's expected.
 
-## Natural next steps
+## Weekly digest email (cron)
 
-- **Search insight:** log a `search_impression` (and the query) when a venue
-  appears in results — unlocks "what people searched to find you" and search
-  rank, which merchants love. Higher write volume, so batch it.
-- **Weekly digest email:** a Monday "Your Gander week: 142 views, 9 calls, 2
-  bookings" using the existing email infra — strong for retention.
-- **ROI attribution:** tie bookings/voucher revenue to the views that preceded
-  them for a true "Gander drove you £X" figure.
+`api/weekly-digest.ts` emails each claimed merchant a "Your Gander week" summary
+(views, customer actions, bookings, new reviews) every Monday at 08:00. It's
+wired in `vercel.json` as a Vercel Cron. Dead weeks (all zeros) are skipped so
+merchants aren't nagged.
+
+**Setup:**
+1. Add a `CRON_SECRET` env var in Vercel (any long random string). Vercel
+   automatically sends it as `Authorization: Bearer <CRON_SECRET>` on cron calls,
+   and the endpoint rejects anything else.
+2. Ensure `SUPABASE_URL` + `SUPABASE_SERVICE_ROLE_KEY` (already set for outreach),
+   `RESEND_API_KEY` + `RESEND_FROM_EMAIL` (your verified transactional domain),
+   and `APP_URL` are set.
+3. Deploy — the cron registers automatically. To test now, you can `GET` it with
+   the `Authorization: Bearer <CRON_SECRET>` header.
+
+This is transactional mail (a merchant's own account summary), so it correctly
+uses your main `RESEND_API_KEY` / domain — *not* the cold-outreach domain.
+
+## Done in this pass
+
+- ✅ Real profile views / saves / actions / conversion + local rank benchmark
+- ✅ "What people searched to find you" (search-term attribution on result clicks)
+- ✅ "What Gander has driven for you" ROI banner
+- ✅ Weekly digest email (above)
+
+## Still worth doing later
+
+- **Search rank / impressions:** also log when a venue *appears* in results (not
+  just clicks) to show impression volume and average rank. Higher write volume —
+  batch it.
+- **True ROI attribution:** tie specific bookings/voucher sales back to the views
+  that preceded them, rather than showing totals side by side.
 - **Tighten RLS:** restrict `business_events_select` to the venue's owner once
-  owner attribution is wired, if you'd rather counts weren't world-readable to
-  signed-in users.
+  owner attribution is wired, if you'd rather counts weren't readable by any
+  signed-in user.

@@ -16,11 +16,17 @@ interface Props {
   className?: string
   showRank?: boolean
   distance?: string
+  /** When the card is shown in search results, the query that surfaced it —
+   *  carried to the listing page so the view can be attributed to this search. */
+  searchQuery?: string
 }
 
-export default function BusinessCard({ business: b, className, showRank, distance }: Props) {
+export default function BusinessCard({ business: b, className, showRank, distance, searchQuery }: Props) {
   const { statsFor } = useStore()
   const { rating, reviewCount } = statsFor(b)
+  const to = searchQuery?.trim()
+    ? `/b/${b.slug}?q=${encodeURIComponent(searchQuery.trim())}`
+    : `/b/${b.slug}`
   const emoji = categoryMap[b.category].emoji
   const hasDeal = dealsForBusiness(b.id).length > 0
   const openStatus = getOpenStatus(b.hours)
@@ -33,7 +39,7 @@ export default function BusinessCard({ business: b, className, showRank, distanc
     // ── Attraction card (parks, piers, museums, landmarks) ──────────────────────
     return (
       <Link
-        to={`/b/${b.slug}`}
+        to={to}
         className={clsx(
           'group flex flex-col overflow-hidden rounded-2xl bg-white card-shadow ring-1 ring-teal-100 transition hover:-translate-y-0.5 hover:shadow-lg',
           className,
@@ -107,7 +113,7 @@ export default function BusinessCard({ business: b, className, showRank, distanc
     // ── Unclaimed / basic listing card ────────────────────────────────────────
     return (
       <Link
-        to={`/b/${b.slug}`}
+        to={to}
         className={clsx(
           'group flex flex-col overflow-hidden rounded-2xl border border-dashed border-stone-300 bg-stone-50 transition hover:-translate-y-0.5 hover:border-stone-400 hover:bg-white hover:shadow-md',
           className,

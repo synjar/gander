@@ -1354,15 +1354,44 @@ export async function getBookingsByDayOfWeek(businessId: string): Promise<DayBoo
 
 export type BusinessEventType = 'view' | 'phone' | 'directions' | 'website' | 'menu' | 'share'
 
-/** Fire-and-forget: record an engagement event for a business. Never throws —
- *  analytics must never break the customer-facing UX. */
-export async function logBusinessEvent(businessId: string, type: BusinessEventType): Promise<void> {
+/** Fire-and-forget: record an engagement event for a business. `query` is the
+ *  search term that surfaced the listing (for 'view' events from search). Never
+ *  throws — analytics must never break the customer-facing UX. */
+export async function logBusinessEvent(businessId: string, type: BusinessEventType, query?: string): Promise<void> {
   if (!backendEnabled || !businessId) return
   try {
-    await client().from('business_events').insert({ business_id: businessId, type })
+    const row: Record<string, unknown> = { business_id: businessId, type }
+    // Only reference the query column when we actually have one, so plain
+    // views/actions keep working even before the column migration is applied.
+    if (query?.trim()) row.query = query.trim().slice(0, 80)
+    await client().from('business_events').insert(row)
   } catch {
     /* swallow — best-effort telemetry */
   }
+}
+
+/** Top search terms that led customers to a business (last `days` days). */
+export async function getSearchTerms(businessId: string, days = 30, limit = 8): Promise<{ query: string; count: number }[]> {
+  if (!backendEnabled) return []
+  const since = new Date()
+  since.setDate(since.getDate() - days)
+  const { data } = await client()
+    .from('business_events')
+    .select('query')
+    .eq('business_id', businessId)
+    .eq('type', 'view')
+    .not('query', 'is', null)
+    .gte('created_at', since.toISOString())
+  if (!data) return []
+  const counts: Record<string, number> = {}
+  for (const r of data) {
+    const q = (r.query as string | null)?.trim().toLowerCase()
+    if (q) counts[q] = (counts[q] ?? 0) + 1
+  }
+  return Object.entries(counts)
+    .sort((a, b) => b[1] - a[1])
+    .slice(0, limit)
+    .map(([query, count]) => ({ query, count }))
 }
 
 export interface BusinessEngagement {
