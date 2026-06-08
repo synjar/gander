@@ -22,6 +22,33 @@ const AMENITY_TO_CATEGORY: Record<string, CategoryId> = {
   hotel:          'hotels',
 }
 
+// Human-readable labels for OSM attraction tag values
+const TOURISM_LABEL: Record<string, string> = {
+  attraction:           'Attraction',
+  museum:               'Museum',
+  gallery:              'Gallery',
+  aquarium:             'Aquarium',
+  zoo:                  'Zoo',
+  theme_park:           'Theme Park',
+  viewpoint:            'Viewpoint',
+  artwork:              'Public Art',
+}
+const HISTORIC_LABEL: Record<string, string> = {
+  castle:               'Castle',
+  monument:             'Monument',
+  memorial:             'Memorial',
+  ruins:                'Ruins',
+  archaeological_site:  'Archaeological Site',
+  building:             'Historic Building',
+}
+const LEISURE_LABEL: Record<string, string> = {
+  park:                 'Park',
+  marina:               'Marina',
+  nature_reserve:       'Nature Reserve',
+  beach_resort:         'Beach',
+  beach:                'Beach',
+}
+
 // OSM day abbreviation → full name index (Sunday=0 like JS Date)
 const DAY_INDEX: Record<string, number> = {
   Mo: 1, Tu: 2, We: 3, Th: 4, Fr: 5, Sa: 6, Su: 0,
@@ -235,6 +262,14 @@ const PLACEHOLDER_PHOTOS: Record<string, string[]> = {
     'photo-1489599849927-2ee91cede3ba',
     'photo-1514525253161-7a46d19cd819',
   ],
+  attractions: [
+    'photo-1488646953014-85cb44e25828', // pier / seaside
+    'photo-1526401485004-46910ecc8e51', // outdoor / landscape
+    'photo-1489599849927-2ee91cede3ba', // heritage / museum
+    'photo-1541534741688-6078c6bfb5c5', // park / nature
+    'photo-1476514525535-07fb3b4ae5f1', // lake / open air
+    'photo-1464822759023-fed622ff2c3b', // countryside / reserve
+  ],
 }
 
 const UNSPLASH_BASE = 'https://images.unsplash.com'
@@ -275,6 +310,48 @@ function address(tags: Record<string, string>): string {
     tags['addr:city'] || tags['addr:town'] || tags['addr:village'],
   ].filter(Boolean)
   return parts.join(', ') || 'Address not listed'
+}
+
+/** Derive tags relevant to an attraction from OSM data */
+function parseAttractionTags(tags: Record<string, string>): string[] {
+  const out: string[] = []
+  if (tags['fee'] === 'no' || tags['charge'] === 'no') out.push('Free entry')
+  if (tags['fee'] === 'yes') out.push('Admission charged')
+  if (tags['fee'] === 'donation') out.push('Donation welcome')
+  if (tags['wheelchair'] === 'yes') out.push('Wheelchair accessible')
+  if (tags['dog'] === 'yes' || tags['dogs'] === 'yes') out.push('Dog friendly')
+  if (tags['internet_access'] === 'wlan' || tags['wifi'] === 'yes') out.push('Free WiFi')
+  if (tags['outdoor_seating'] === 'yes') out.push('Outdoor seating')
+  if (tags['access'] === 'private' || tags['access'] === 'restricted') out.push('Restricted access')
+  return out.slice(0, 6)
+}
+
+/** Derive amenities for attractions */
+function parseAttractionAmenities(tags: Record<string, string>): string[] {
+  const out: string[] = []
+  if (tags['wheelchair'] === 'yes') out.push('Wheelchair accessible')
+  if (tags['dog'] === 'yes' || tags['dogs'] === 'yes') out.push('Dog friendly')
+  if (tags['toilets'] === 'yes' || tags['toilets:disposal']) out.push('Toilets on site')
+  if (tags['parking'] === 'yes' || tags['parking'] === 'surface') out.push('Car parking')
+  if (tags['guided_tours'] === 'yes') out.push('Guided tours available')
+  if (tags['cafe'] === 'yes' || tags['restaurant'] === 'yes') out.push('On-site café')
+  if (tags['shop'] === 'yes' || tags['gift_shop'] === 'yes') out.push('Gift shop')
+  if (tags['picnic_site'] === 'yes' || tags['picnic'] === 'yes') out.push('Picnic area')
+  return out
+}
+
+/** Build description for an attraction */
+function buildAttractionDescription(
+  tags: Record<string, string>,
+  attractionType: string,
+  name: string,
+  nb: string,
+): { short: string; long: string } {
+  const desc = tags['description'] ?? tags['short_description'] ?? ''
+  let short = desc.slice(0, 160)
+  if (!short) short = `${attractionType} in ${nb}`
+  const long = desc || `${name} is a ${attractionType.toLowerCase()} located in ${nb}.`
+  return { short, long }
 }
 
 // ─── OSM element shape ────────────────────────────────────────────────────────
@@ -423,6 +500,108 @@ out center tags ${limit};
       amenities:        parseAmenities(t),
       bookable:         ['restaurants','gyms','spas','salons','hotels'].includes(category),
       delivers:         t['delivery'] === 'yes',
+      lat,
+      lng:              lon,
+    })
+  }
+
+  return { venues }
+}
+
+/**
+ * Query Overpass for named attractions (parks, piers, museums, castles, etc.)
+ * within a city area. Uses tourism/historic/leisure/natural keys rather than amenity.
+ */
+export async function fetchOSMAttractions(
+  cityId: string,
+  limit = 300,
+): Promise<{ venues: OsmVenue[]; error?: string }> {
+  const areaQuery = AREA_QUERIES[cityId]
+  if (!areaQuery) return { venues: [], error: `No Overpass query defined for city: ${cityId}` }
+
+  // Use nwr (nodes + ways + relations) so parks/museums encoded as polygons are included
+  const query = `
+[out:json][timeout:60];
+${areaQuery};
+(
+  nwr[tourism~"^(attraction|museum|gallery|aquarium|zoo|theme_park|viewpoint|artwork)$"]["name"](area.a);
+  nwr[historic~"^(castle|monument|memorial|ruins|archaeological_site|building)$"]["name"](area.a);
+  nwr[leisure~"^(park|marina|nature_reserve|beach_resort)$"]["name"](area.a);
+  nwr[natural=beach]["name"](area.a);
+);
+out center tags ${limit};
+`.trim()
+
+  let data: { elements: OsmElement[] }
+  try {
+    data = await overpassPost(query)
+  } catch (e) {
+    return { venues: [], error: e instanceof Error ? e.message : String(e) }
+  }
+
+  const venues: OsmVenue[] = []
+  const seenIds = new Set<string>()
+
+  for (const el of data.elements) {
+    const t = el.tags ?? {}
+    const name = t.name
+    if (!name) continue
+
+    // De-duplicate — ways and their constituent nodes can appear twice
+    const osmId = `${el.type}/${el.id}`
+    if (seenIds.has(name + osmId)) continue
+    seenIds.add(name + osmId)
+
+    const lat = el.lat ?? el.center?.lat
+    const lon = el.lon ?? el.center?.lon
+    if (!lat || !lon) continue
+
+    // Determine the human-readable attraction type
+    const attractionType =
+      TOURISM_LABEL[t.tourism ?? ''] ||
+      HISTORIC_LABEL[t.historic ?? ''] ||
+      LEISURE_LABEL[t.leisure ?? ''] ||
+      (t.natural === 'beach' ? 'Beach' : 'Attraction')
+
+    const slug   = `${slugify(name)}-osm-${el.id}`
+    const nb     = neighbourhood(t)
+    const hours  = parseOpeningHours(t.opening_hours)
+    const { short, long } = buildAttractionDescription(t, attractionType, name, nb)
+    const tags   = parseAttractionTags(t)
+    const freeEntry = t['fee'] === 'no' || t['charge'] === 'no' || t['fee'] === 'free'
+
+    const osmImage = t.image || t['wikimedia_commons:image'] || ''
+    const heroImage = osmImage || placeholderPhoto('attractions', el.id)
+
+    venues.push({
+      id:               `osm-${el.id}`,
+      osmId,
+      slug,
+      name,
+      source:           'osm',
+      claimed:          false,
+      category:         'attractions',
+      // Reuse cuisine field to surface the attraction type (Park, Museum, etc.)
+      cuisine:          attractionType,
+      tags,
+      freeEntry,
+      priceLevel:       1,
+      neighbourhood:    nb,
+      city:             cityId === 'west-sussex' ? 'West Sussex' : cityId,
+      cityId,
+      address:          address(t),
+      postcode:         t['addr:postcode'] ?? '',
+      phone:            t.phone ?? t['contact:phone'] ?? '',
+      website:          t.website ?? t['contact:website'] ?? '',
+      heroImage,
+      images:           [],
+      shortDescription: short,
+      description:      long,
+      hours,
+      openNow:          false,
+      amenities:        parseAttractionAmenities(t),
+      bookable:         false,
+      delivers:         false,
       lat,
       lng:              lon,
     })

@@ -1,7 +1,7 @@
 import { useState, useMemo, useEffect, type FormEvent } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import { Helmet } from 'react-helmet-async'
-import { Building2, Search, Sparkles, Star, TrendingUp, Trophy } from 'lucide-react'
+import { Building2, Landmark, Search, Sparkles, Star, TrendingUp, Trophy } from 'lucide-react'
 import clsx from 'clsx'
 import { businesses, businessesById } from '../data/businesses'
 import { deals } from '../data/deals'
@@ -27,13 +27,14 @@ const popular = [
 ]
 
 const categoryTints: Record<string, string> = {
-  restaurants: 'bg-orange-50 ring-orange-100',
-  cafes: 'bg-amber-50 ring-amber-100',
-  bars: 'bg-rose-50 ring-rose-100',
-  salons: 'bg-violet-50 ring-violet-100',
-  gyms: 'bg-sky-50 ring-sky-100',
-  spas: 'bg-emerald-50 ring-emerald-100',
-  hotels: 'bg-indigo-50 ring-indigo-100',
+  restaurants:  'bg-orange-50 ring-orange-100',
+  cafes:        'bg-amber-50 ring-amber-100',
+  bars:         'bg-rose-50 ring-rose-100',
+  salons:       'bg-violet-50 ring-violet-100',
+  gyms:         'bg-sky-50 ring-sky-100',
+  spas:         'bg-emerald-50 ring-emerald-100',
+  hotels:       'bg-indigo-50 ring-indigo-100',
+  attractions:  'bg-teal-50 ring-teal-100',
 }
 
 function CitySelect({ className }: { className?: string }) {
@@ -191,10 +192,17 @@ export default function Home() {
     ),
     [liveBusinesses, hiddenBusinesses, city.id],
   )
-  // OSM stubs shown separately
+  // OSM venue stubs (non-attractions) shown in "More in city" section
   const osmCityBiz = useMemo(
     () => importedBusinesses.filter(
-      (b) => b.cityId === city.id && !hiddenBusinesses.includes(b.id),
+      (b) => b.cityId === city.id && !hiddenBusinesses.includes(b.id) && b.category !== 'attractions',
+    ),
+    [importedBusinesses, hiddenBusinesses, city.id],
+  )
+  // Attractions shown in their own dedicated section
+  const osmCityAttractions = useMemo(
+    () => importedBusinesses.filter(
+      (b) => b.cityId === city.id && !hiddenBusinesses.includes(b.id) && b.category === 'attractions',
     ),
     [importedBusinesses, hiddenBusinesses, city.id],
   )
@@ -318,6 +326,30 @@ export default function Home() {
           ))}
         </div>
       </Section>
+
+      {osmCityAttractions.length > 0 && (
+        <div className="bg-teal-50/40 border-t border-teal-100/60">
+          <Section
+            title={`Places to visit in ${city.name}`}
+            subtitle="Parks, piers, museums and local landmarks"
+            seeAllTo="/search?category=attractions"
+            seeAllLabel="See all attractions"
+          >
+            <div className="mb-3 flex items-start gap-2.5 rounded-xl border border-teal-200 bg-white px-4 py-3 text-sm text-stone-500">
+              <Landmark size={16} className="mt-0.5 shrink-0 text-teal-500" />
+              <span>
+                Public attractions, parks and heritage sites — council-owned or publicly managed.
+                Not affiliated with any business on Gander.
+              </span>
+            </div>
+            <Carousel>
+              {osmCityAttractions.slice(0, 16).map((b) => (
+                <BusinessCard key={b.id} business={b} className="w-56 shrink-0 snap-start sm:w-64" />
+              ))}
+            </Carousel>
+          </Section>
+        </div>
+      )}
 
       {osmCityBiz.length > 0 && (
         <div className="bg-stone-50/80 border-t border-stone-100">

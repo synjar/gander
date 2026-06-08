@@ -1176,6 +1176,7 @@ function rowToBusiness(r: Record<string, unknown>): Business {
     lng:              r.lng as number,
     bookable:         Boolean(r.bookable),
     delivers:         Boolean(r.delivers),
+    freeEntry:        ((r.tags as string[]) ?? []).includes('Free entry'),
   }
 }
 

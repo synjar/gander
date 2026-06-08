@@ -10,6 +10,7 @@ import {
   Eye,
   EyeOff,
   Globe,
+  Landmark,
   Loader2,
   MessageSquare,
   PoundSterling,
@@ -25,7 +26,7 @@ import { businesses, businessesById } from '../data/businesses'
 import { cities } from '../data/cities'
 import { categories, categoryMap } from '../data/categories'
 import { useStore } from '../store/StoreContext'
-import { fetchOSMVenues, type OsmVenue } from '../lib/overpass'
+import { fetchOSMAttractions, fetchOSMVenues, type OsmVenue } from '../lib/overpass'
 import { generateReviews } from '../lib/seedReviewGen'
 import * as db from '../lib/db'
 import { formatPrice, priceLevel } from '../lib/format'
@@ -304,6 +305,224 @@ function ImportPanel() {
                       <td className="px-3 py-2 capitalize text-stone-500">
                         {categoryMap[v.category]?.label ?? v.category}
                       </td>
+                      <td className="px-3 py-2 text-stone-500">{v.neighbourhood}</td>
+                      <td className="px-3 py-2">
+                        {already ? (
+                          <span className="rounded-full bg-sky-50 px-2 py-0.5 text-xs text-sky-600">In DB</span>
+                        ) : (
+                          <span className="rounded-full bg-emerald-50 px-2 py-0.5 text-xs text-emerald-600">New</span>
+                        )}
+                      </td>
+                    </tr>
+                  )
+                })}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      )}
+    </section>
+  )
+}
+
+// ─── Attractions import panel ─────────────────────────────────────────────────
+
+function AttractionsPanel() {
+  const { importBusinesses } = useStore()
+
+  const [cityId, setCityId]             = useState('west-sussex')
+  const [fetchState, setFetchState]     = useState<'idle' | 'fetching' | 'done' | 'importing'>('idle')
+  const [fetchError, setFetchError]     = useState<string | null>(null)
+  const [venues, setVenues]             = useState<OsmVenue[]>([])
+  const [existingIds, setExistingIds]   = useState<Set<string>>(new Set())
+  const [selected, setSelected]         = useState<Set<string>>(new Set())
+  const [importResult, setImportResult] = useState<{ inserted: number; updated: number; skippedClaimed: number } | null>(null)
+  const [selectMode, setSelectMode]     = useState<'new' | 'all'>('new')
+
+  const handleFetch = useCallback(async () => {
+    setFetchState('fetching')
+    setFetchError(null)
+    setVenues([])
+    setSelected(new Set())
+    setImportResult(null)
+    try {
+      const [{ venues: fetched, error }, existIds] = await Promise.all([
+        fetchOSMAttractions(cityId, 300),
+        db.getImportedOsmIds(cityId),
+      ])
+      if (error) { setFetchError(error); setFetchState('idle'); return }
+      setVenues(fetched)
+      setExistingIds(existIds)
+      setSelected(new Set(fetched.filter((v) => !existIds.has(v.osmId)).map((v) => v.osmId)))
+      setFetchState('done')
+    } catch (e) {
+      setFetchError(e instanceof Error ? e.message : String(e))
+      setFetchState('idle')
+    }
+  }, [cityId])
+
+  const handleImport = useCallback(async () => {
+    const toImport = venues.filter((v) => selected.has(v.osmId))
+    if (toImport.length === 0) return
+    setFetchState('importing')
+    try {
+      const result = await importBusinesses(toImport)
+      setImportResult(result)
+      const existIds = await db.getImportedOsmIds(cityId)
+      setExistingIds(existIds)
+      setSelected(new Set())
+    } catch (e) {
+      setFetchError(e instanceof Error ? e.message : String(e))
+    } finally {
+      setFetchState('done')
+    }
+  }, [venues, selected, importBusinesses, cityId])
+
+  const handleSelectModeChange = useCallback((mode: 'new' | 'all') => {
+    setSelectMode(mode)
+    if (mode === 'all') {
+      setSelected(new Set(venues.map((v) => v.osmId)))
+    } else {
+      setSelected(new Set(venues.filter((v) => !existingIds.has(v.osmId)).map((v) => v.osmId)))
+    }
+  }, [venues, existingIds])
+
+  const toggleAll = useCallback(() => {
+    const pool = selectMode === 'all'
+      ? venues.map((v) => v.osmId)
+      : venues.filter((v) => !existingIds.has(v.osmId)).map((v) => v.osmId)
+    if (selected.size === pool.length) setSelected(new Set())
+    else setSelected(new Set(pool))
+  }, [venues, existingIds, selected, selectMode])
+
+  const newCount     = venues.filter((v) => !existingIds.has(v.osmId)).length
+  const alreadyCount = venues.filter((v) => existingIds.has(v.osmId)).length
+
+  return (
+    <section className="mt-4 rounded-2xl border border-stone-200 bg-white p-5">
+      <h2 className="flex items-center gap-2 font-display text-lg font-semibold text-stone-900">
+        <Landmark size={18} className="text-teal-500" /> Attractions import
+      </h2>
+      <p className="mt-0.5 text-xs text-stone-500">
+        Pull parks, piers, museums, castles and landmarks from OpenStreetMap.
+        These are listed as publicly managed attractions — not claimable by merchants.
+      </p>
+
+      <div className="mt-4 flex flex-wrap items-end gap-3">
+        <div>
+          <label className="mb-1 block text-xs font-medium text-stone-600">Area</label>
+          <select
+            value={cityId}
+            onChange={(e) => { setCityId(e.target.value); setVenues([]); setFetchState('idle') }}
+            className="rounded-xl border border-stone-200 px-3 py-2 text-sm outline-none focus:border-teal-400"
+          >
+            {OSM_CITIES.map((c) => (
+              <option key={c.id} value={c.id}>{c.name}</option>
+            ))}
+          </select>
+        </div>
+        <button
+          onClick={handleFetch}
+          disabled={fetchState === 'fetching' || fetchState === 'importing'}
+          className="flex items-center gap-2 rounded-xl bg-teal-700 px-4 py-2 text-sm font-semibold text-white hover:bg-teal-800 disabled:opacity-50"
+        >
+          {fetchState === 'fetching'
+            ? <><Loader2 size={15} className="animate-spin" /> Fetching…</>
+            : <><Globe size={15} /> Fetch attractions from OSM</>}
+        </button>
+
+        {(fetchState === 'done' || fetchState === 'importing') && selected.size > 0 && (
+          <button
+            onClick={handleImport}
+            disabled={fetchState === 'importing'}
+            className="flex items-center gap-2 rounded-xl bg-teal-500 px-4 py-2 text-sm font-semibold text-white hover:bg-teal-600 disabled:opacity-50"
+          >
+            {fetchState === 'importing'
+              ? <><Loader2 size={15} className="animate-spin" /> Importing…</>
+              : <><Download size={15} /> {selected.size} selected — import / update</>}
+          </button>
+        )}
+      </div>
+
+      {fetchError && (
+        <p className="mt-3 rounded-lg bg-rose-50 px-3 py-2 text-xs text-rose-700">{fetchError}</p>
+      )}
+
+      {importResult && (
+        <div className="mt-3 flex flex-wrap items-center gap-x-4 gap-y-1 rounded-lg bg-emerald-50 px-3 py-2 text-xs font-medium text-emerald-700">
+          <span className="flex items-center gap-1.5"><Check size={14} /> Done</span>
+          {importResult.inserted > 0 && <span>{importResult.inserted} new attractions added</span>}
+          {importResult.updated  > 0 && <span>{importResult.updated} refreshed</span>}
+        </div>
+      )}
+
+      {venues.length > 0 && (
+        <div className="mt-4">
+          <div className="flex flex-wrap items-center gap-3 text-xs text-stone-500">
+            <span>{venues.length} attractions fetched</span>
+            <span className="text-emerald-600">{newCount} new</span>
+            {alreadyCount > 0 && <span className="text-stone-400">{alreadyCount} already in DB</span>}
+            {alreadyCount > 0 && (
+              <div className="ml-auto flex gap-1 rounded-lg border border-stone-200 p-0.5">
+                {(['new', 'all'] as const).map((m) => (
+                  <button
+                    key={m}
+                    onClick={() => handleSelectModeChange(m)}
+                    className={clsx(
+                      'rounded-md px-2.5 py-1 text-xs font-medium transition',
+                      selectMode === m ? 'bg-stone-900 text-white' : 'text-stone-500 hover:text-stone-800',
+                    )}
+                  >
+                    {m === 'new' ? 'New only' : 'All (re-import)'}
+                  </button>
+                ))}
+              </div>
+            )}
+          </div>
+          <div className="mt-2 max-h-96 overflow-y-auto rounded-xl border border-stone-200">
+            <table className="w-full text-sm">
+              <thead className="sticky top-0 bg-stone-50 text-left text-xs text-stone-500">
+                <tr>
+                  <th className="px-3 py-2">
+                    <input
+                      type="checkbox"
+                      checked={selected.size > 0 && selected.size === (selectMode === 'all' ? venues.length : newCount)}
+                      onChange={toggleAll}
+                      className="rounded"
+                    />
+                  </th>
+                  <th className="px-3 py-2 font-medium">Name</th>
+                  <th className="px-3 py-2 font-medium">Type</th>
+                  <th className="px-3 py-2 font-medium">Area</th>
+                  <th className="px-3 py-2 font-medium">Status</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-stone-100">
+                {venues.map((v) => {
+                  const already    = existingIds.has(v.osmId)
+                  const isSelected = selected.has(v.osmId)
+                  return (
+                    <tr
+                      key={v.osmId}
+                      className={clsx('transition', already ? 'bg-stone-50/60' : 'hover:bg-stone-50')}
+                    >
+                      <td className="px-3 py-2">
+                        <input
+                          type="checkbox"
+                          checked={isSelected}
+                          onChange={() => {
+                            setSelected((prev) => {
+                              const next = new Set(prev)
+                              if (next.has(v.osmId)) next.delete(v.osmId)
+                              else next.add(v.osmId)
+                              return next
+                            })
+                          }}
+                          className="rounded"
+                        />
+                      </td>
+                      <td className="px-3 py-2 font-medium text-stone-900">{v.name}</td>
+                      <td className="px-3 py-2 text-stone-500">{v.cuisine ?? 'Attraction'}</td>
                       <td className="px-3 py-2 text-stone-500">{v.neighbourhood}</td>
                       <td className="px-3 py-2">
                         {already ? (
@@ -729,8 +948,11 @@ export default function Admin() {
         )}
       </section>
 
-      {/* OSM Import */}
+      {/* OSM Import — businesses */}
       <ImportPanel />
+
+      {/* OSM Import — attractions */}
+      <AttractionsPanel />
 
       {/* Seed reviews */}
       <ReviewsPanel />

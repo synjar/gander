@@ -1,5 +1,5 @@
 import { Link } from 'react-router-dom'
-import { MapPin, Tag } from 'lucide-react'
+import { MapPin, Tag, Ticket } from 'lucide-react'
 import clsx from 'clsx'
 import type { Business } from '../data/types'
 import { categoryMap } from '../data/categories'
@@ -24,7 +24,84 @@ export default function BusinessCard({ business: b, className, showRank, distanc
   const emoji = categoryMap[b.category].emoji
   const hasDeal = dealsForBusiness(b.id).length > 0
   const openStatus = getOpenStatus(b.hours)
-  const isUnclaimed = b.source === 'osm' && !b.claimed
+  // Attractions are council-owned, not claimable — different card entirely
+  const isAttraction = b.category === 'attractions'
+  // Unclaimed = OSM-imported business that hasn't been claimed yet (not an attraction)
+  const isUnclaimed = b.source === 'osm' && !b.claimed && !isAttraction
+
+  if (isAttraction) {
+    // ── Attraction card (parks, piers, museums, landmarks) ──────────────────────
+    return (
+      <Link
+        to={`/b/${b.slug}`}
+        className={clsx(
+          'group flex flex-col overflow-hidden rounded-2xl bg-white card-shadow ring-1 ring-teal-100 transition hover:-translate-y-0.5 hover:shadow-lg',
+          className,
+        )}
+      >
+        <div className="relative aspect-[4/3] overflow-hidden">
+          <SmartImage
+            src={b.heroImage}
+            seedFallback={b.id}
+            emoji={emoji}
+            className="h-full w-full object-cover transition duration-500 group-hover:scale-105"
+          />
+          <div className="absolute right-2 top-2">
+            <FavouriteButton id={b.id} />
+          </div>
+          {/* Attraction type badge */}
+          <span className="absolute left-2 top-2 flex items-center gap-1 rounded-full bg-teal-600/90 px-2.5 py-0.5 text-[11px] font-semibold text-white shadow-sm backdrop-blur-sm">
+            {emoji} {b.cuisine || 'Attraction'}
+          </span>
+          {/* Free/paid entry badge */}
+          {b.freeEntry && (
+            <span className="absolute bottom-2 left-2 flex items-center gap-1 rounded-full bg-emerald-500 px-2 py-1 text-[11px] font-semibold text-white shadow-sm">
+              <Ticket size={11} /> Free entry
+            </span>
+          )}
+        </div>
+
+        <div className="flex flex-1 flex-col p-3.5">
+          <h3 className="font-semibold leading-tight text-stone-900 group-hover:text-teal-700">
+            {b.name}
+          </h3>
+
+          {reviewCount > 0 ? (
+            <div className="mt-1.5 flex items-center gap-1.5">
+              <Stars value={rating} size={15} />
+              <span className="text-sm font-semibold text-stone-800">{rating.toFixed(1)}</span>
+              <span className="text-xs text-stone-400">({reviewCount.toLocaleString('en-GB')})</span>
+            </div>
+          ) : (
+            <p className="mt-1 text-xs text-stone-400">No reviews yet</p>
+          )}
+
+          <p className="mt-1 text-sm text-stone-500">
+            <span className="inline-flex items-center gap-0.5">
+              <MapPin size={13} className="text-stone-400" />
+              {b.neighbourhood}
+            </span>
+            {distance && (
+              <>
+                <span className="mx-1.5 text-stone-300">·</span>
+                <span className="font-medium text-teal-600">{distance}</span>
+              </>
+            )}
+          </p>
+
+          {b.tags.filter((t) => t !== 'Free entry' && t !== 'Admission charged').slice(0, 2).length > 0 && (
+            <div className="mt-2 flex flex-wrap items-center gap-1.5">
+              {b.tags.filter((t) => t !== 'Free entry' && t !== 'Admission charged').slice(0, 2).map((t) => (
+                <span key={t} className="rounded-md bg-teal-50 px-2 py-0.5 text-[11px] font-medium text-teal-700">
+                  {t}
+                </span>
+              ))}
+            </div>
+          )}
+        </div>
+      </Link>
+    )
+  }
 
   if (isUnclaimed) {
     // ── Unclaimed / basic listing card ────────────────────────────────────────

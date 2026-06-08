@@ -99,6 +99,13 @@ export const categories: Category[] = [
     emoji: '🎵',
     blurb: 'Clubs, live music and comedy nights',
   },
+  {
+    id: 'attractions',
+    label: 'Attractions',
+    icon: 'Landmark',
+    emoji: '🏛️',
+    blurb: 'Piers, parks, museums and local landmarks',
+  },
 ]
 
 export const categoryMap: Record<CategoryId, Category> = Object.fromEntries(

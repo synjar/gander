@@ -13,6 +13,7 @@ export type CategoryId =
   | 'activities'
   | 'entertainment'
   | 'nightlife'
+  | 'attractions'
 
 export interface Category {
   id: CategoryId
@@ -75,6 +76,8 @@ export interface Business {
   claimed?: boolean
   /** OSM element identifier e.g. "node/123456" */
   osmId?: string
+  /** True when OSM fee=no — used on attraction cards and detail pages */
+  freeEntry?: boolean
 }
 
 export interface Review {

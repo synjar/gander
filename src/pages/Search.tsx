@@ -146,7 +146,8 @@ export default function Search() {
     let list = allBiz.filter(
       (b) => b.cityId === city.id && !hiddenBusinesses.includes(b.id) && matchesQuery(b, q),
     )
-    if (verifiedOnly) list = list.filter((b) => b.source !== 'osm' || b.claimed)
+    // Attractions are publicly managed (not claimable), so always show them
+    if (verifiedOnly) list = list.filter((b) => b.source !== 'osm' || b.claimed || b.category === 'attractions')
     if (category !== 'all') list = list.filter((b) => b.category === category)
     if (neighbourhood !== 'all' && city.neighbourhoods.includes(neighbourhood))
       list = list.filter((b) => b.neighbourhood === neighbourhood)

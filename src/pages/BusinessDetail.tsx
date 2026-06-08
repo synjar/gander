@@ -9,11 +9,13 @@ import {
   Check,
   ChevronRight,
   Globe,
+  Landmark,
   MapPin,
   Navigation,
   PenLine,
   Phone,
   Share2,
+  Ticket,
 } from 'lucide-react'
 import clsx from 'clsx'
 import { businessBySlug, businesses } from '../data/businesses'
@@ -248,8 +250,27 @@ export default function BusinessDetail() {
         <span className="text-stone-600">{b.name}</span>
       </nav>
 
-      {/* Claim banner for unclaimed OSM listings */}
-      {b.source === 'osm' && !b.claimed && (
+      {/* Banner for attractions (council / publicly managed) */}
+      {b.category === 'attractions' && (
+        <div className="mb-4 flex items-start gap-3 rounded-2xl border border-teal-200 bg-teal-50 px-4 py-3">
+          <Landmark size={18} className="mt-0.5 shrink-0 text-teal-600" />
+          <div className="flex-1">
+            <p className="text-sm font-semibold text-teal-900">Public attraction</p>
+            <p className="text-xs text-teal-700">
+              This is a publicly managed attraction — owned by a council, trust or heritage
+              body. It is not affiliated with any merchant on Gander.
+            </p>
+          </div>
+          {b.freeEntry && (
+            <span className="flex shrink-0 items-center gap-1 rounded-full bg-emerald-500 px-3 py-1.5 text-xs font-semibold text-white">
+              <Ticket size={12} /> Free entry
+            </span>
+          )}
+        </div>
+      )}
+
+      {/* Claim banner for unclaimed OSM business listings */}
+      {b.source === 'osm' && !b.claimed && b.category !== 'attractions' && (
         <div className="mb-4 flex items-start gap-3 rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3">
           <Building2 size={18} className="mt-0.5 shrink-0 text-amber-600" />
           <div className="flex-1">
@@ -288,8 +309,24 @@ export default function BusinessDetail() {
             <a href="#reviews" className="text-stone-500 hover:text-brand-600">
               {stats.reviewCount.toLocaleString('en-GB')} reviews
             </a>
-            <span className="text-stone-300">·</span>
-            <span className="font-medium text-stone-600">{priceLevel(b.priceLevel)}</span>
+            {b.category !== 'attractions' && (
+              <>
+                <span className="text-stone-300">·</span>
+                <span className="font-medium text-stone-600">{priceLevel(b.priceLevel)}</span>
+              </>
+            )}
+            {b.category === 'attractions' && b.freeEntry && (
+              <>
+                <span className="text-stone-300">·</span>
+                <span className="font-medium text-emerald-600">Free entry</span>
+              </>
+            )}
+            {b.category === 'attractions' && !b.freeEntry && (
+              <>
+                <span className="text-stone-300">·</span>
+                <span className="font-medium text-stone-500">Admission may apply</span>
+              </>
+            )}
             <span className="text-stone-300">·</span>
             <span className="text-stone-600">{b.cuisine}</span>
             <span className="text-stone-300">·</span>
@@ -331,7 +368,7 @@ export default function BusinessDetail() {
 
       {/* Action bar */}
       <div className="mt-4 flex flex-wrap items-center gap-2.5">
-        {b.bookable && (
+        {b.bookable && b.category !== 'attractions' && (
           <button
             onClick={() => setBookOpen(true)}
             className="flex items-center gap-2 rounded-full bg-brand-500 px-5 py-2.5 text-sm font-semibold text-white shadow-sm transition hover:bg-brand-600"
@@ -339,7 +376,7 @@ export default function BusinessDetail() {
             <CalendarCheck size={17} /> {booking.label}
           </button>
         )}
-        {b.delivers && (
+        {b.delivers && b.category !== 'attractions' && (
           <button
             onClick={() => setOrderOpen(true)}
             className="flex items-center gap-2 rounded-full border border-stone-200 bg-white px-5 py-2.5 text-sm font-semibold text-stone-800 transition hover:bg-stone-50"
