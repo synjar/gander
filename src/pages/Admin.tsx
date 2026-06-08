@@ -32,6 +32,7 @@ import * as db from '../lib/db'
 import { formatPrice, priceLevel } from '../lib/format'
 import Stars from '../components/Stars'
 import Avatar from '../components/Avatar'
+import OutreachPanel from '../components/OutreachPanel'
 
 function StatCard({
   icon: Icon,
@@ -988,6 +989,9 @@ export default function Admin() {
 
       {/* Seed reviews */}
       <ReviewsPanel />
+
+      {/* Business outreach (Worthing etc.) */}
+      <OutreachPanel />
     </div>
   )
 }

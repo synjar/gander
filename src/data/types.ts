@@ -53,6 +53,7 @@ export interface Business {
   postcode: string
   phone: string
   website?: string
+  email?: string
   heroImage: string
   images: string[]
   shortDescription: string
