@@ -116,6 +116,29 @@ export default function BusinessDetail() {
     }
   }, [rawB?.id])
 
+  // Convert custom hours map → OpeningHours[] and compute openNow
+  const DAYS = ['Monday','Tuesday','Wednesday','Thursday','Friday','Saturday','Sunday']
+  const customHours = profile?.hours
+    ? DAYS.map((day) => {
+        const d = profile.hours![day]
+        if (!d || d.closed) return { day, open: 'Closed', close: '' }
+        return { day, open: d.open, close: d.close }
+      })
+    : null
+
+  const customOpenNow = customHours
+    ? (() => {
+        const now = new Date()
+        const dayName = now.toLocaleDateString('en-GB', { weekday: 'long' })
+        const entry = customHours.find((h) => h.day === dayName)
+        if (!entry || entry.open === 'Closed') return false
+        const [oh, om] = entry.open.split(':').map(Number)
+        const [ch, cm] = entry.close.split(':').map(Number)
+        const mins = now.getHours() * 60 + now.getMinutes()
+        return mins >= oh * 60 + om && mins < ch * 60 + cm
+      })()
+    : null
+
   // Merge owner-editable profile on top of static/submission data
   const b = rawB && profile
     ? {
@@ -130,6 +153,8 @@ export default function BusinessDetail() {
         heroImage: profile.heroImageUrl ?? rawB.heroImage,
         images: profile.galleryUrls.length > 0 ? profile.galleryUrls : rawB.images,
         amenities: profile.amenities.length > 0 ? profile.amenities : rawB.amenities,
+        hours: customHours ?? rawB.hours,
+        openNow: customOpenNow ?? rawB.openNow,
       }
     : rawB
 

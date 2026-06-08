@@ -501,6 +501,12 @@ export async function saveMerchantStripeAccount(businessId: string, stripeAccoun
 
 // --- Business profiles (owner-editable details + photos) --------------------
 
+export interface DayHours {
+  open: string    // "09:00"
+  close: string   // "22:00"
+  closed: boolean
+}
+
 export interface BusinessProfile {
   businessId: string
   name?: string
@@ -513,6 +519,7 @@ export interface BusinessProfile {
   heroImageUrl?: string
   galleryUrls: string[]
   amenities: string[]
+  hours?: Record<string, DayHours> // keyed by day name e.g. "Monday"
 }
 
 export async function getBusinessProfile(businessId: string): Promise<BusinessProfile | null> {
@@ -535,6 +542,7 @@ export async function getBusinessProfile(businessId: string): Promise<BusinessPr
     heroImageUrl: (data.hero_image_url as string) ?? undefined,
     galleryUrls: (data.gallery_urls as string[]) ?? [],
     amenities: (data.amenities as string[]) ?? [],
+    hours: (data.hours as Record<string, DayHours>) ?? undefined,
   }
 }
 
@@ -557,6 +565,7 @@ export async function saveBusinessProfile(
         hero_image_url: profile.heroImageUrl ?? null,
         gallery_urls: profile.galleryUrls ?? [],
         amenities: profile.amenities ?? [],
+        hours: profile.hours ?? null,
         updated_at: new Date().toISOString(),
       },
       { onConflict: 'business_id' },

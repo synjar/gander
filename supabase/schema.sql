@@ -286,3 +286,6 @@ alter table public.business_profiles enable row level security;
 drop policy if exists "Public access to business_profiles" on public.business_profiles;
 create policy "Public access to business_profiles"
   on public.business_profiles for all using (true) with check (true);
+
+-- Add hours column to business_profiles (run if table already exists) --------
+alter table public.business_profiles add column if not exists hours jsonb;

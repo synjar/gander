@@ -27,7 +27,7 @@ import { useAuth } from '../auth/AuthContext'
 import type { Business, Review } from '../data/types'
 import { discountPct, formatPrice } from '../lib/format'
 import * as db from '../lib/db'
-import type { StaffMember } from '../lib/db'
+import type { StaffMember, DayHours } from '../lib/db'
 import { uploadImage, storageEnabled } from '../lib/storage'
 import Avatar from '../components/Avatar'
 import Stars from '../components/Stars'
@@ -244,6 +244,67 @@ function DealCreator({ business }: { business: Business }) {
 
 // ---- Edit listing tab ------------------------------------------------------
 
+const DAYS = ['Monday','Tuesday','Wednesday','Thursday','Friday','Saturday','Sunday']
+
+const DEFAULT_HOURS: Record<string, DayHours> = Object.fromEntries(
+  DAYS.map((d) => [d, { open: '09:00', close: '22:00', closed: d === 'Sunday' }]),
+)
+
+function HoursEditor({
+  hours, onChange,
+}: {
+  hours: Record<string, DayHours>
+  onChange: (h: Record<string, DayHours>) => void
+}) {
+  function update(day: string, field: keyof DayHours, value: string | boolean) {
+    onChange({ ...hours, [day]: { ...hours[day], [field]: value } })
+  }
+
+  return (
+    <div className="divide-y divide-stone-100">
+      {DAYS.map((day) => {
+        const h = hours[day] ?? { open: '09:00', close: '22:00', closed: false }
+        const isToday = new Date().toLocaleDateString('en-GB', { weekday: 'long' }) === day
+        return (
+          <div key={day} className={`flex items-center gap-3 py-2.5 ${isToday ? 'font-semibold' : ''}`}>
+            <span className="w-24 shrink-0 text-sm text-stone-700">
+              {day.slice(0, 3)}{isToday && <span className="ml-1 text-xs font-normal text-brand-500">today</span>}
+            </span>
+            <label className="flex items-center gap-1.5 text-sm text-stone-500">
+              <input
+                type="checkbox"
+                checked={!h.closed}
+                onChange={(e) => update(day, 'closed', !e.target.checked)}
+                className="accent-brand-500"
+              />
+              Open
+            </label>
+            {!h.closed ? (
+              <>
+                <input
+                  type="time"
+                  value={h.open}
+                  onChange={(e) => update(day, 'open', e.target.value)}
+                  className="rounded-lg border border-stone-200 px-2 py-1 text-sm outline-none focus:border-brand-400"
+                />
+                <span className="text-xs text-stone-400">to</span>
+                <input
+                  type="time"
+                  value={h.close}
+                  onChange={(e) => update(day, 'close', e.target.value)}
+                  className="rounded-lg border border-stone-200 px-2 py-1 text-sm outline-none focus:border-brand-400"
+                />
+              </>
+            ) : (
+              <span className="text-sm text-stone-400">Closed</span>
+            )}
+          </div>
+        )
+      })}
+    </div>
+  )
+}
+
 const COMMON_AMENITIES = [
   'Free Wi-Fi', 'Outdoor seating', 'Private dining', 'Accessible', 'Dog friendly',
   'Late night', 'Live music', 'Parking', 'Takeaway', 'BYO', 'Reservations',
@@ -296,6 +357,7 @@ function EditListingTab({ business }: { business: Business }) {
   const [heroUrl, setHeroUrl] = useState(business.heroImage ?? '')
   const [gallery, setGallery] = useState<string[]>(business.images ?? [])
   const [amenities, setAmenities] = useState<string[]>(business.amenities ?? [])
+  const [hours, setHours] = useState<Record<string, DayHours>>(DEFAULT_HOURS)
 
   // Load saved profile
   useEffect(() => {
@@ -313,6 +375,7 @@ function EditListingTab({ business }: { business: Business }) {
           if (p.heroImageUrl) setHeroUrl(p.heroImageUrl)
           if (p.galleryUrls.length) setGallery(p.galleryUrls)
           if (p.amenities.length) setAmenities(p.amenities)
+          if (p.hours) setHours(p.hours)
         }
       })
       .catch(console.error)
@@ -339,7 +402,7 @@ function EditListingTab({ business }: { business: Business }) {
       await db.saveBusinessProfile(business.id, {
         name, shortDescription: shortDesc, description: desc,
         phone, website, address, postcode,
-        heroImageUrl: heroUrl, galleryUrls: gallery, amenities,
+        heroImageUrl: heroUrl, galleryUrls: gallery, amenities, hours,
       })
       setSaved(true)
       setTimeout(() => setSaved(false), 3000)
@@ -406,6 +469,15 @@ function EditListingTab({ business }: { business: Business }) {
                 />
               )}
             </div>
+          </div>
+        </section>
+
+        {/* Opening hours */}
+        <section className="rounded-2xl border border-stone-200 bg-white p-5">
+          <h2 className="font-display text-lg font-semibold text-stone-900">Opening hours</h2>
+          <p className="mt-0.5 text-sm text-stone-500">Set your weekly schedule. Customers see this on your public page.</p>
+          <div className="mt-3">
+            <HoursEditor hours={hours} onChange={setHours} />
           </div>
         </section>
 
