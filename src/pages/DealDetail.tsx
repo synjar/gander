@@ -138,6 +138,7 @@ export default function DealDetail() {
             ) : paying ? (
               <PaymentForm
                 amount={deal.dealPrice}
+                businessId={deal.businessId}
                 onPaid={() => {
                   setVoucher(buyVoucher(deal, biz?.name ?? 'the venue'))
                   setPaying(false)

@@ -474,3 +474,27 @@ export async function getStaffBusiness(email: string): Promise<{ businessId: str
   if (error || !data) return null
   return { businessId: data.business_id as string, businessName: data.business_name as string }
 }
+
+// --- Stripe Connect ---------------------------------------------------------
+
+/** Returns the Stripe connected account ID for a business, or null. */
+export async function getMerchantStripeAccount(businessId: string): Promise<string | null> {
+  if (!backendEnabled) return null
+  const { data } = await client()
+    .from('merchant_stripe_accounts')
+    .select('stripe_account_id')
+    .eq('business_id', businessId)
+    .maybeSingle()
+  return (data?.stripe_account_id as string) ?? null
+}
+
+/** Saves (or upserts) a Stripe connected account ID for a business. */
+export async function saveMerchantStripeAccount(businessId: string, stripeAccountId: string): Promise<void> {
+  const { error } = await client()
+    .from('merchant_stripe_accounts')
+    .upsert(
+      { business_id: businessId, stripe_account_id: stripeAccountId },
+      { onConflict: 'business_id' },
+    )
+  if (error) throw error
+}

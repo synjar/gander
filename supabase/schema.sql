@@ -250,3 +250,17 @@ alter table public.staff_members enable row level security;
 drop policy if exists "Public access to staff_members" on public.staff_members;
 create policy "Public access to staff_members"
   on public.staff_members for all using (true) with check (true);
+
+-- Merchant Stripe Connect accounts ------------------------------------------
+create table if not exists public.merchant_stripe_accounts (
+  id                uuid primary key default gen_random_uuid(),
+  business_id       text not null unique,
+  stripe_account_id text not null,
+  connected_at      timestamptz not null default now()
+);
+
+alter table public.merchant_stripe_accounts enable row level security;
+
+drop policy if exists "Public access to merchant_stripe_accounts" on public.merchant_stripe_accounts;
+create policy "Public access to merchant_stripe_accounts"
+  on public.merchant_stripe_accounts for all using (true) with check (true);

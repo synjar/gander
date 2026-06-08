@@ -3,12 +3,16 @@ import { loadStripe } from '@stripe/stripe-js'
 import { Elements, PaymentElement, useStripe, useElements } from '@stripe/react-stripe-js'
 import { CreditCard, Loader2, Lock } from 'lucide-react'
 import { formatPrice } from '../lib/format'
+import * as db from '../lib/db'
 
 const PK = import.meta.env.VITE_STRIPE_PUBLISHABLE_KEY as string | undefined
 const stripePromise = PK ? loadStripe(PK) : null
 
+const PLATFORM_FEE_RATE = 0.15
+
 interface Props {
   amount: number
+  businessId?: string
   onPaid: () => void
   onCancel?: () => void
 }
@@ -150,21 +154,31 @@ function StripeForm({ amount, onPaid, onCancel }: Props) {
 
 // ---- Outer wrapper: fetches client_secret then renders Elements -------------
 
-export default function PaymentForm({ amount, onPaid, onCancel }: Props) {
+export default function PaymentForm({ amount, businessId, onPaid, onCancel }: Props) {
   const [clientSecret, setClientSecret] = useState<string | null>(null)
   const [fetchError, setFetchError] = useState<string | null>(null)
+  const [stripeAccountId, setStripeAccountId] = useState<string | null>(null)
 
   useEffect(() => {
     if (!stripePromise) return
-    fetch('/api/create-payment-intent', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ amount }),
-    })
-      .then((r) => r.json() as Promise<{ clientSecret: string }>)
-      .then(({ clientSecret }) => setClientSecret(clientSecret))
-      .catch(() => setFetchError('Could not connect to payment service.'))
-  }, [amount])
+
+    async function init() {
+      // Look up merchant's connected Stripe account (if any)
+      const accountId = businessId ? await db.getMerchantStripeAccount(businessId) : null
+      setStripeAccountId(accountId)
+
+      const res = await fetch('/api/create-payment-intent', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ amount, stripeAccountId: accountId ?? undefined }),
+      })
+      const json = await res.json() as { clientSecret?: string; error?: string }
+      if (json.error) { setFetchError(json.error); return }
+      if (json.clientSecret) setClientSecret(json.clientSecret)
+    }
+
+    init().catch(() => setFetchError('Could not connect to payment service.'))
+  }, [amount, businessId])
 
   if (!stripePromise) return <MockForm amount={amount} onPaid={onPaid} onCancel={onCancel} />
 
@@ -177,9 +191,19 @@ export default function PaymentForm({ amount, onPaid, onCancel }: Props) {
     </div>
   )
 
+  const merchantPayout = stripeAccountId ? amount * (1 - PLATFORM_FEE_RATE) : null
+
   return (
-    <Elements stripe={stripePromise} options={{ clientSecret, appearance: { theme: 'stripe' } }}>
-      <StripeForm amount={amount} onPaid={onPaid} onCancel={onCancel} />
-    </Elements>
+    <div className="space-y-3">
+      {merchantPayout !== null && (
+        <div className="flex items-center justify-between rounded-xl border border-emerald-200 bg-emerald-50 px-3 py-2 text-xs">
+          <span className="text-emerald-700">Merchant receives</span>
+          <span className="font-semibold text-emerald-800">{formatPrice(merchantPayout)} (after 15% platform fee)</span>
+        </div>
+      )}
+      <Elements stripe={stripePromise} options={{ clientSecret, appearance: { theme: 'stripe' } }}>
+        <StripeForm amount={amount} onPaid={onPaid} onCancel={onCancel} />
+      </Elements>
+    </div>
   )
 }

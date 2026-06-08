@@ -2,10 +2,17 @@ export type CategoryId =
   | 'restaurants'
   | 'cafes'
   | 'bars'
+  | 'pubs'
   | 'salons'
+  | 'beauty'
   | 'gyms'
+  | 'fitness'
   | 'spas'
   | 'hotels'
+  | 'shopping'
+  | 'activities'
+  | 'entertainment'
+  | 'nightlife'
 
 export interface Category {
   id: CategoryId

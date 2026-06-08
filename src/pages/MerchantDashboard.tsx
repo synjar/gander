@@ -4,6 +4,7 @@ import {
   BarChart3,
   CalendarCheck,
   Check,
+  CheckCircle2,
   ExternalLink,
   Eye,
   Heart,
@@ -16,6 +17,7 @@ import {
   Trash2,
   UserPlus,
   Users,
+  Wallet,
   X,
 } from 'lucide-react'
 import clsx from 'clsx'
@@ -235,6 +237,87 @@ function DealCreator({ business }: { business: Business }) {
           </p>
         )}
       </div>
+    </div>
+  )
+}
+
+// ---- Stripe Connect panel --------------------------------------------------
+
+function StripeConnectPanel({ businessId }: { businessId: string }) {
+  const { configured } = useAuth()
+  const [accountId, setAccountId] = useState<string | null | undefined>(undefined)
+  const [connecting, setConnecting] = useState(false)
+  const [error, setError] = useState('')
+
+  useEffect(() => {
+    if (!configured || !db.backendEnabled) { setAccountId(null); return }
+    db.getMerchantStripeAccount(businessId).then(setAccountId).catch(() => setAccountId(null))
+  }, [businessId, configured])
+
+  async function handleConnect() {
+    setConnecting(true)
+    setError('')
+    try {
+      const res = await fetch('/api/stripe-connect-link', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ businessId }),
+      })
+      const json = await res.json() as { url?: string; error?: string }
+      if (json.error) { setError(json.error); setConnecting(false); return }
+      if (json.url) window.location.href = json.url
+    } catch {
+      setError('Could not reach the server.')
+      setConnecting(false)
+    }
+  }
+
+  return (
+    <div className="rounded-2xl border border-stone-200 bg-white p-4">
+      <h3 className="flex items-center gap-1.5 font-semibold text-stone-900">
+        <Wallet size={16} className="text-brand-500" /> Payouts
+      </h3>
+
+      {accountId === undefined && (
+        <div className="mt-2 flex justify-center py-3">
+          <Loader2 size={16} className="animate-spin text-stone-400" />
+        </div>
+      )}
+
+      {accountId === null && (
+        <>
+          <p className="mt-1 text-xs text-stone-500">
+            Connect Stripe to receive automatic payouts when customers buy your deals.
+            Gander keeps a <span className="font-semibold">15% platform fee</span> — the rest goes to your bank account.
+          </p>
+          {!configured && (
+            <p className="mt-2 text-xs text-amber-600">Connect Supabase to enable payouts.</p>
+          )}
+          {error && <p className="mt-2 text-xs text-rose-600">{error}</p>}
+          <button
+            onClick={handleConnect}
+            disabled={connecting || !configured}
+            className="mt-3 flex w-full items-center justify-center gap-2 rounded-full bg-[#635BFF] py-2.5 text-sm font-semibold text-white hover:opacity-90 disabled:opacity-40"
+          >
+            {connecting ? <Loader2 size={14} className="animate-spin" /> : (
+              <svg className="h-4 w-4" viewBox="0 0 24 24" fill="currentColor">
+                <path d="M13.976 9.15c-2.172-.806-3.356-1.426-3.356-2.409 0-.831.683-1.305 1.901-1.305 2.227 0 4.515.858 6.09 1.631l.89-5.494C18.252.975 15.697 0 12.165 0 9.667 0 7.589.654 6.104 1.872 4.56 3.147 3.757 4.992 3.757 7.218c0 4.039 2.467 5.76 6.476 7.219 2.585.92 3.445 1.574 3.445 2.583 0 .98-.84 1.545-2.354 1.545-1.875 0-4.965-.921-6.99-2.109l-.9 5.555C5.175 22.99 8.385 24 11.714 24c2.641 0 4.843-.624 6.328-1.813 1.664-1.305 2.525-3.236 2.525-5.732 0-4.128-2.524-5.851-6.591-7.305z"/>
+              </svg>
+            )}
+            Connect with Stripe
+          </button>
+        </>
+      )}
+
+      {accountId && (
+        <div className="mt-2 flex items-center gap-2">
+          <CheckCircle2 size={16} className="shrink-0 text-emerald-500" />
+          <div className="min-w-0 flex-1">
+            <p className="text-sm font-semibold text-stone-900">Stripe connected</p>
+            <p className="truncate font-mono text-xs text-stone-400">{accountId}</p>
+          </div>
+        </div>
+      )}
     </div>
   )
 }
@@ -536,6 +619,7 @@ export default function MerchantDashboard() {
         {/* Deals manager + staff */}
         <aside className="space-y-4">
           <DealCreator business={business} />
+          <StripeConnectPanel businessId={business.id} />
           <StaffManager businessId={business.id} businessName={business.name} />
           <div className="rounded-2xl border border-stone-200 bg-white p-4">
             <h3 className="flex items-center gap-1.5 font-semibold text-stone-900">
