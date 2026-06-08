@@ -120,20 +120,24 @@ function CategoryTiles() {
   return (
     <section className="mx-auto max-w-7xl py-6">
       {/* Single scrollable row — swipeable on mobile, scroll on desktop */}
-      <div className="-mx-0 flex gap-2.5 overflow-x-auto px-4 pb-2 no-scrollbar sm:gap-3">
-        {categories.map((c) => (
-          <Link
-            key={c.id}
-            to={`/search?category=${c.id}`}
-            className={clsx(
-              'flex w-[4.5rem] shrink-0 flex-col items-center gap-2 rounded-2xl px-1.5 py-4 text-center ring-1 transition hover:-translate-y-0.5 hover:shadow-md sm:w-20 md:w-24',
-              categoryTints[c.id] ?? 'bg-stone-50 ring-stone-100',
-            )}
-          >
-            <span className="text-2xl sm:text-3xl">{c.emoji}</span>
-            <span className="text-[10px] font-semibold leading-tight text-stone-700 sm:text-xs">{c.label}</span>
-          </Link>
-        ))}
+      <div className="relative">
+        <div className="flex gap-2.5 overflow-x-auto px-4 pb-2 no-scrollbar sm:gap-3">
+          {categories.map((c) => (
+            <Link
+              key={c.id}
+              to={`/search?category=${c.id}`}
+              className={clsx(
+                'flex w-[4.5rem] shrink-0 flex-col items-center gap-2 rounded-2xl px-1.5 py-4 text-center ring-1 transition hover:-translate-y-0.5 hover:shadow-md sm:w-20 md:w-24',
+                categoryTints[c.id] ?? 'bg-stone-50 ring-stone-100',
+              )}
+            >
+              <span className="text-2xl sm:text-3xl">{c.emoji}</span>
+              <span className="text-[10px] font-semibold leading-tight text-stone-700 sm:text-xs">{c.label}</span>
+            </Link>
+          ))}
+        </div>
+        {/* Fade hint — signals there are more tiles off-screen to the right */}
+        <div className="pointer-events-none absolute inset-y-0 right-0 w-16 bg-gradient-to-l from-white to-transparent" aria-hidden />
       </div>
     </section>
   )

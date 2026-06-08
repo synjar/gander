@@ -264,8 +264,9 @@ export default function Search() {
         </div>
       </div>
 
-      {/* Category pills */}
-      <div className="mt-4 -mx-4 flex gap-2 overflow-x-auto px-4 pb-1 no-scrollbar">
+      {/* Category pills — fade on right signals more content */}
+      <div className="relative mt-4">
+      <div className="-mx-4 flex gap-2 overflow-x-auto px-4 pb-1 no-scrollbar">
         <button
           onClick={() => setParam('category', 'all')}
           className={clsx(
@@ -292,6 +293,9 @@ export default function Search() {
             {c.label}
           </button>
         ))}
+      </div>
+      {/* Fade hint — signals there are more pills off-screen to the right */}
+      <div className="pointer-events-none absolute inset-y-0 right-0 w-16 bg-gradient-to-l from-white to-transparent" aria-hidden />
       </div>
 
       {/* Secondary filters */}
