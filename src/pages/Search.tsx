@@ -142,6 +142,16 @@ export default function Search() {
 
   const [verifiedOnly, setVerifiedOnly] = useState(true)
 
+  // Only show category pills for categories that have at least one venue in this city
+  const populatedCategories = useMemo(() => {
+    const withVenues = new Set(
+      allBiz
+        .filter((b) => b.cityId === city.id && !hiddenBusinesses.includes(b.id))
+        .map((b) => b.category),
+    )
+    return categories.filter((c) => withVenues.has(c.id))
+  }, [allBiz, city.id, hiddenBusinesses])
+
   const results = useMemo(() => {
     let list = allBiz.filter(
       (b) => b.cityId === city.id && !hiddenBusinesses.includes(b.id) && matchesQuery(b, q),
@@ -278,7 +288,7 @@ export default function Search() {
         >
           All
         </button>
-        {categories.map((c) => (
+        {populatedCategories.map((c) => (
           <button
             key={c.id}
             onClick={() => setParam('category', c.id)}

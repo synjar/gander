@@ -116,13 +116,14 @@ function Hero() {
   )
 }
 
-function CategoryTiles() {
+function CategoryTiles({ visibleCategories }: { visibleCategories: typeof categories }) {
+  if (visibleCategories.length === 0) return null
   return (
     <section className="mx-auto max-w-7xl py-6">
       {/* Single scrollable row — swipeable on mobile, scroll on desktop */}
       <div className="relative">
         <div className="flex gap-2.5 overflow-x-auto px-4 pb-2 no-scrollbar sm:gap-3">
-          {categories.map((c) => (
+          {visibleCategories.map((c) => (
             <Link
               key={c.id}
               to={`/search?category=${c.id}`}
@@ -219,6 +220,11 @@ export default function Home() {
     () => allBiz.filter((b) => b.cityId === city.id && !hiddenBusinesses.includes(b.id)),
     [allBiz, city.id, hiddenBusinesses],
   )
+  // Only show category tiles that have at least one venue in the current city
+  const populatedCategories = useMemo(() => {
+    const withVenues = new Set(cityBiz.map((b) => b.category))
+    return categories.filter((c) => withVenues.has(c.id))
+  }, [cityBiz])
   const topRated = [...curatedBiz].sort((a, b) => b.rating - a.rating)
 
   const featuredRaw = curatedBiz.filter((b) => b.featured)
@@ -259,7 +265,7 @@ export default function Home() {
         <meta property="og:description" content={`Discover the best restaurants, cafés, bars and hidden gems in ${city.name}.`} />
       </Helmet>
       <Hero />
-      <CategoryTiles />
+      <CategoryTiles visibleCategories={populatedCategories} />
 
       <Section
         title="Gander Picks"
