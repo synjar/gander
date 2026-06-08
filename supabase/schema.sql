@@ -192,3 +192,43 @@ create policy "Public read photos"
 drop policy if exists "Authenticated upload photos" on storage.objects;
 create policy "Authenticated upload photos"
   on storage.objects for insert to authenticated with check (bucket_id = 'photos');
+
+-- Business submissions -------------------------------------------------------
+create table if not exists public.business_submissions (
+  id uuid primary key default gen_random_uuid(),
+  submitter_id uuid references auth.users on delete set null,
+  submitter_email text not null,
+  name text not null,
+  slug text not null,
+  category text not null,
+  city text not null,
+  city_id text not null,
+  neighbourhood text not null,
+  address text not null,
+  postcode text not null,
+  short_description text not null default '',
+  description text not null,
+  phone text not null default '',
+  website text not null default '',
+  price_level int not null default 2,
+  bookable boolean not null default false,
+  delivers boolean not null default false,
+  status text not null default 'pending',
+  reviewer_note text,
+  created_at timestamptz not null default now(),
+  reviewed_at timestamptz
+);
+
+alter table public.business_submissions enable row level security;
+
+drop policy if exists "Anyone can submit a business" on public.business_submissions;
+create policy "Anyone can submit a business"
+  on public.business_submissions for insert with check (true);
+
+drop policy if exists "Authenticated users can read submissions" on public.business_submissions;
+create policy "Authenticated users can read submissions"
+  on public.business_submissions for select to authenticated using (true);
+
+drop policy if exists "Authenticated users can update submissions" on public.business_submissions;
+create policy "Authenticated users can update submissions"
+  on public.business_submissions for update to authenticated using (true);

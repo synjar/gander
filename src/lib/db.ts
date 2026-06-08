@@ -7,7 +7,7 @@
 // in. Each function maps snake_case rows to the app's camelCase types.
 
 import { supabase, isSupabaseConfigured } from './supabase'
-import type { Booking, Deal, Review, Voucher } from '../data/types'
+import type { Booking, Business, BusinessSubmission, CategoryId, Deal, Review, Voucher } from '../data/types'
 
 export const backendEnabled = isSupabaseConfigured
 
@@ -220,6 +220,158 @@ export async function createMerchantDeal(
     expires: d.expires,
   })
   if (error) throw error
+}
+
+// --- Business submissions ---------------------------------------------------
+
+function makeSlug(name: string): string {
+  return name.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '')
+}
+
+export interface NewBusinessSubmission {
+  submitterEmail: string
+  name: string
+  category: CategoryId
+  city: string
+  cityId: string
+  neighbourhood: string
+  address: string
+  postcode: string
+  shortDescription: string
+  description: string
+  phone: string
+  website: string
+  priceLevel: 1 | 2 | 3 | 4
+  bookable: boolean
+  delivers: boolean
+}
+
+export async function submitBusiness(
+  sub: NewBusinessSubmission,
+  userId?: string,
+): Promise<void> {
+  const { error } = await client().from('business_submissions').insert({
+    submitter_id: userId ?? null,
+    submitter_email: sub.submitterEmail,
+    name: sub.name,
+    slug: makeSlug(sub.name),
+    category: sub.category,
+    city: sub.city,
+    city_id: sub.cityId,
+    neighbourhood: sub.neighbourhood,
+    address: sub.address,
+    postcode: sub.postcode,
+    short_description: sub.shortDescription,
+    description: sub.description,
+    phone: sub.phone,
+    website: sub.website,
+    price_level: sub.priceLevel,
+    bookable: sub.bookable,
+    delivers: sub.delivers,
+  })
+  if (error) throw error
+}
+
+export async function listSubmissions(status?: string): Promise<BusinessSubmission[]> {
+  let q = client().from('business_submissions').select('*').order('created_at', { ascending: false })
+  if (status) q = q.eq('status', status)
+  const { data, error } = await q
+  if (error) throw error
+  return (data ?? []).map((r) => ({
+    id: r.id,
+    submitterEmail: r.submitter_email,
+    name: r.name,
+    slug: r.slug,
+    category: r.category as CategoryId,
+    city: r.city,
+    cityId: r.city_id,
+    neighbourhood: r.neighbourhood,
+    address: r.address,
+    postcode: r.postcode,
+    shortDescription: r.short_description,
+    description: r.description,
+    phone: r.phone,
+    website: r.website,
+    priceLevel: r.price_level as 1 | 2 | 3 | 4,
+    bookable: r.bookable,
+    delivers: r.delivers,
+    status: r.status as 'pending' | 'approved' | 'rejected',
+    reviewerNote: r.reviewer_note ?? undefined,
+    submittedAt: new Date(r.created_at).getTime(),
+  }))
+}
+
+export async function updateSubmissionStatus(
+  id: string,
+  status: 'approved' | 'rejected',
+  note?: string,
+): Promise<void> {
+  const { error } = await client()
+    .from('business_submissions')
+    .update({ status, reviewer_note: note ?? null, reviewed_at: new Date().toISOString() })
+    .eq('id', id)
+  if (error) throw error
+}
+
+function submissionToBusiness(r: BusinessSubmission): Business {
+  return {
+    id: r.id,
+    slug: r.slug,
+    name: r.name,
+    category: r.category,
+    tags: [],
+    rating: 0,
+    reviewCount: 0,
+    priceLevel: r.priceLevel,
+    neighbourhood: r.neighbourhood,
+    city: r.city,
+    cityId: r.cityId,
+    address: r.address,
+    postcode: r.postcode,
+    phone: r.phone,
+    website: r.website || undefined,
+    heroImage: `https://loremflickr.com/800/600/${encodeURIComponent(r.name)},food`,
+    images: [],
+    shortDescription: r.shortDescription || r.description.slice(0, 120),
+    description: r.description,
+    hours: [],
+    openNow: false,
+    amenities: [],
+    scores: { food: 0, service: 0, ambience: 0, value: 0 },
+    lat: 0,
+    lng: 0,
+    bookable: r.bookable,
+    delivers: r.delivers,
+  }
+}
+
+export async function listApprovedBusinesses(): Promise<Business[]> {
+  const { data, error } = await client()
+    .from('business_submissions')
+    .select('*')
+    .eq('status', 'approved')
+  if (error) throw error
+  return (data ?? []).map((r) => submissionToBusiness({
+    id: r.id,
+    submitterEmail: r.submitter_email,
+    name: r.name,
+    slug: r.slug,
+    category: r.category as CategoryId,
+    city: r.city,
+    cityId: r.city_id,
+    neighbourhood: r.neighbourhood,
+    address: r.address,
+    postcode: r.postcode,
+    shortDescription: r.short_description,
+    description: r.description,
+    phone: r.phone,
+    website: r.website,
+    priceLevel: r.price_level as 1 | 2 | 3 | 4,
+    bookable: r.bookable,
+    delivers: r.delivers,
+    status: 'approved',
+    submittedAt: new Date(r.created_at).getTime(),
+  }))
 }
 
 // --- All reviews (with author profile) — used for realtime feeds -----------

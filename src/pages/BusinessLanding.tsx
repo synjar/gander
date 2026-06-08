@@ -58,16 +58,16 @@ export default function BusinessLanding() {
           </p>
           <div className="mt-7 flex flex-wrap gap-3">
             <Link
-              to="/business/dashboard"
+              to="/business/join"
               className="flex items-center gap-2 rounded-full bg-brand-500 px-6 py-3 text-sm font-semibold text-white transition hover:bg-brand-600"
             >
-              Open your dashboard <ArrowRight size={16} />
+              List your business <ArrowRight size={16} />
             </Link>
             <Link
               to="/business/dashboard"
               className="rounded-full border border-white/20 px-6 py-3 text-sm font-semibold text-white transition hover:bg-white/10"
             >
-              Claim your listing
+              Owner login
             </Link>
           </div>
           <div className="mt-10 grid max-w-lg grid-cols-3 gap-6">

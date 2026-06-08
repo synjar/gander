@@ -63,7 +63,8 @@ function MapPanel({ results }: { results: Business[] }) {
 export default function Search() {
   const [params, setParams] = useSearchParams()
   const { city } = useCity()
-  const { hiddenBusinesses } = useStore()
+  const { hiddenBusinesses, liveBusinesses } = useStore()
+  const allBiz = useMemo(() => [...businesses, ...liveBusinesses], [liveBusinesses])
   const q = params.get('q') ?? ''
   const category = params.get('category') ?? 'all'
   const neighbourhood = params.get('neighbourhood') ?? 'all'
@@ -87,7 +88,7 @@ export default function Search() {
   }
 
   const results = useMemo(() => {
-    let list = businesses.filter(
+    let list = allBiz.filter(
       (b) => b.cityId === city.id && !hiddenBusinesses.includes(b.id) && matchesQuery(b, q),
     )
     if (category !== 'all') list = list.filter((b) => b.category === category)
@@ -115,7 +116,7 @@ export default function Search() {
         )
     }
     return list
-  }, [q, category, neighbourhood, prices, minRating, sort, city, hiddenBusinesses])
+  }, [q, category, neighbourhood, prices, minRating, sort, city, hiddenBusinesses, allBiz])
 
   const hasFilters = category !== 'all' || neighbourhood !== 'all' || prices.length > 0 || minRating > 0
 

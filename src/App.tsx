@@ -9,6 +9,7 @@ import Feed from './pages/Feed'
 import Profile from './pages/Profile'
 import BusinessLanding from './pages/BusinessLanding'
 import MerchantDashboard from './pages/MerchantDashboard'
+import BusinessOnboarding from './pages/BusinessOnboarding'
 import Admin from './pages/Admin'
 import NotFound from './pages/NotFound'
 
@@ -24,6 +25,7 @@ const router = createBrowserRouter([
       { path: 'feed', element: <Feed /> },
       { path: 'me', element: <Profile /> },
       { path: 'business', element: <BusinessLanding /> },
+      { path: 'business/join', element: <BusinessOnboarding /> },
       { path: 'business/dashboard', element: <MerchantDashboard /> },
       { path: 'admin', element: <Admin /> },
       { path: '*', element: <NotFound /> },

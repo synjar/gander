@@ -1,16 +1,20 @@
+import { useState } from 'react'
 import { Link } from 'react-router-dom'
 import {
   BarChart3,
   Bike,
   Building2,
   CalendarCheck,
+  Check,
   Eye,
   EyeOff,
+  Loader2,
   MessageSquare,
   PoundSterling,
   Star,
   Tag,
   Ticket,
+  X,
 } from 'lucide-react'
 import clsx from 'clsx'
 import { businesses, businessesById } from '../data/businesses'
@@ -83,11 +87,33 @@ export default function Admin() {
     bookings,
     vouchers,
     orders,
+    submissions,
     isReviewHidden,
     toggleReviewHidden,
     isBusinessHidden,
     toggleBusinessHidden,
+    approveSubmission,
+    rejectSubmission,
   } = useStore()
+
+  const [subTab, setSubTab] = useState<'pending' | 'approved' | 'rejected'>('pending')
+  const [rejectNote, setRejectNote] = useState<Record<string, string>>({})
+  const [busy, setBusy] = useState<string | null>(null)
+
+  const filteredSubs = submissions.filter((s) => s.status === subTab)
+  const pendingCount = submissions.filter((s) => s.status === 'pending').length
+
+  async function handleApprove(id: string) {
+    setBusy(id)
+    await approveSubmission(id).catch(console.error)
+    setBusy(null)
+  }
+
+  async function handleReject(id: string) {
+    setBusy(id)
+    await rejectSubmission(id, rejectNote[id]).catch(console.error)
+    setBusy(null)
+  }
 
   const revenue =
     vouchers.reduce((s, v) => s + v.dealPrice, 0) + orders.reduce((s, o) => s + o.total, 0)
@@ -244,6 +270,93 @@ export default function Admin() {
           </div>
         </section>
       </div>
+
+      {/* Business applications */}
+      <section className="mt-4 rounded-2xl border border-stone-200 bg-white p-5">
+        <div className="flex items-center justify-between">
+          <h2 className="flex items-center gap-2 font-display text-lg font-semibold text-stone-900">
+            <Building2 size={18} className="text-brand-500" /> Business applications
+            {pendingCount > 0 && (
+              <span className="rounded-full bg-brand-500 px-2 py-0.5 text-xs font-semibold text-white">
+                {pendingCount} pending
+              </span>
+            )}
+          </h2>
+          <div className="flex gap-1 rounded-xl border border-stone-200 p-0.5 text-sm">
+            {(['pending', 'approved', 'rejected'] as const).map((t) => (
+              <button
+                key={t}
+                onClick={() => setSubTab(t)}
+                className={clsx(
+                  'rounded-lg px-3 py-1.5 font-medium capitalize transition',
+                  subTab === t ? 'bg-stone-900 text-white' : 'text-stone-500 hover:text-stone-800',
+                )}
+              >
+                {t}
+              </button>
+            ))}
+          </div>
+        </div>
+
+        {filteredSubs.length === 0 ? (
+          <p className="mt-4 text-sm text-stone-400">No {subTab} applications.</p>
+        ) : (
+          <div className="mt-3 divide-y divide-stone-100">
+            {filteredSubs.map((s) => (
+              <div key={s.id} className="py-4">
+                <div className="flex flex-wrap items-start gap-3">
+                  <div className="grid h-10 w-10 shrink-0 place-items-center rounded-xl bg-brand-50 text-brand-600">
+                    <Building2 size={18} />
+                  </div>
+                  <div className="min-w-0 flex-1">
+                    <p className="font-semibold text-stone-900">{s.name}</p>
+                    <p className="text-sm text-stone-500">
+                      {s.neighbourhood}, {s.city} · {s.category} · {'£'.repeat(s.priceLevel)}
+                    </p>
+                    <p className="text-xs text-stone-400">{s.address}, {s.postcode}</p>
+                    <p className="mt-1 line-clamp-2 text-sm text-stone-600">{s.shortDescription || s.description}</p>
+                    <p className="mt-1 text-xs text-stone-400">
+                      Contact: {s.submitterEmail} · Submitted {new Date(s.submittedAt).toLocaleDateString('en-GB')}
+                    </p>
+                  </div>
+                  {s.status === 'pending' && (
+                    <div className="flex shrink-0 flex-col gap-2">
+                      <button
+                        onClick={() => handleApprove(s.id)}
+                        disabled={busy === s.id}
+                        className="flex items-center gap-1.5 rounded-full bg-emerald-500 px-3 py-1.5 text-xs font-semibold text-white hover:bg-emerald-600 disabled:opacity-50"
+                      >
+                        {busy === s.id ? <Loader2 size={12} className="animate-spin" /> : <Check size={12} />}
+                        Approve
+                      </button>
+                      <button
+                        onClick={() => handleReject(s.id)}
+                        disabled={busy === s.id}
+                        className="flex items-center gap-1.5 rounded-full border border-rose-200 px-3 py-1.5 text-xs font-semibold text-rose-600 hover:bg-rose-50 disabled:opacity-50"
+                      >
+                        <X size={12} /> Reject
+                      </button>
+                    </div>
+                  )}
+                  {s.status === 'approved' && (
+                    <Link to={`/b/${s.slug}`} className="shrink-0 text-xs font-medium text-brand-600 hover:underline">
+                      View listing →
+                    </Link>
+                  )}
+                </div>
+                {s.status === 'pending' && (
+                  <input
+                    value={rejectNote[s.id] ?? ''}
+                    onChange={(e) => setRejectNote((prev) => ({ ...prev, [s.id]: e.target.value }))}
+                    placeholder="Optional rejection note…"
+                    className="mt-2 w-full rounded-lg border border-stone-200 px-3 py-2 text-xs outline-none focus:border-brand-400"
+                  />
+                )}
+              </div>
+            ))}
+          </div>
+        )}
+      </section>
     </div>
   )
 }

@@ -154,6 +154,29 @@ export interface Voucher {
   redeemed: boolean
 }
 
+export interface BusinessSubmission {
+  id: string
+  submitterEmail: string
+  name: string
+  slug: string
+  category: CategoryId
+  city: string
+  cityId: string
+  neighbourhood: string
+  address: string
+  postcode: string
+  shortDescription: string
+  description: string
+  phone: string
+  website: string
+  priceLevel: 1 | 2 | 3 | 4
+  bookable: boolean
+  delivers: boolean
+  status: 'pending' | 'approved' | 'rejected'
+  reviewerNote?: string
+  submittedAt: number
+}
+
 export interface Order {
   id: string
   businessId: string

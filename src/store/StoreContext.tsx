@@ -7,7 +7,7 @@ import {
   useState,
   type ReactNode,
 } from 'react'
-import type { Booking, Business, Deal, Order, Review, Voucher } from '../data/types'
+import type { Booking, Business, BusinessSubmission, Deal, Order, Review, Voucher } from '../data/types'
 import { seedReviews } from '../data/reviews'
 import { deals as seedDeals } from '../data/deals'
 import { currentUser } from '../data/users'
@@ -127,6 +127,10 @@ interface StoreValue extends Persisted {
   toggleReviewHidden: (id: string) => void
   isBusinessHidden: (id: string) => boolean
   toggleBusinessHidden: (id: string) => void
+  liveBusinesses: Business[]
+  submissions: BusinessSubmission[]
+  approveSubmission: (id: string) => Promise<void>
+  rejectSubmission: (id: string, note?: string) => Promise<void>
   /** True when reads/writes are backed by Supabase for a signed-in user. */
   backendSynced: boolean
 }
@@ -167,6 +171,8 @@ export function StoreProvider({ children }: { children: ReactNode }) {
   const [orders, setOrders] = useState<Order[]>(initial.orders)
   const [hiddenReviews, setHiddenReviews] = useState<string[]>(initial.hiddenReviews)
   const [hiddenBusinesses, setHiddenBusinesses] = useState<string[]>(initial.hiddenBusinesses)
+  const [liveBusinesses, setLiveBusinesses] = useState<Business[]>([])
+  const [submissions, setSubmissions] = useState<BusinessSubmission[]>([])
 
   // Demo mode: persist everything to localStorage. (Backend mode persists per-row.)
   useEffect(() => {
@@ -208,14 +214,18 @@ export function StoreProvider({ children }: { children: ReactNode }) {
   // Public, globally-readable data (responses, merchant deals, all reviews).
   const reloadPublic = useCallback(async () => {
     if (!db.backendEnabled) return
-    const [resps, mdeals, revs] = await Promise.all([
+    const [resps, mdeals, revs, liveBiz, subs] = await Promise.all([
       db.listResponses(),
       db.listMerchantDeals(),
       db.listAllReviews(),
+      db.listApprovedBusinesses(),
+      db.listSubmissions(),
     ])
     setReviewResponses(resps)
     setMerchantDeals(mdeals)
     setBackendReviews(revs)
+    setLiveBusinesses(liveBiz)
+    setSubmissions(subs)
   }, [])
 
   const reloadUser = useCallback(async () => {
@@ -523,6 +533,16 @@ export function StoreProvider({ children }: { children: ReactNode }) {
     )
   }, [])
 
+  const approveSubmission = useCallback(async (id: string) => {
+    await db.updateSubmissionStatus(id, 'approved')
+    await reloadPublic()
+  }, [reloadPublic])
+
+  const rejectSubmission = useCallback(async (id: string, note?: string) => {
+    await db.updateSubmissionStatus(id, 'rejected', note)
+    await reloadPublic()
+  }, [reloadPublic])
+
   const value: StoreValue = {
     userReviews,
     favourites,
@@ -561,6 +581,10 @@ export function StoreProvider({ children }: { children: ReactNode }) {
     toggleReviewHidden,
     isBusinessHidden: (id) => hiddenBusinesses.includes(id),
     toggleBusinessHidden,
+    liveBusinesses,
+    submissions,
+    approveSubmission,
+    rejectSubmission,
     backendSynced: Boolean(backendUserId),
   }
 

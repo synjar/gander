@@ -1,4 +1,4 @@
-import { useState, type FormEvent } from 'react'
+import { useState, useMemo, type FormEvent } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import { Search, Sparkles, Star, TrendingUp, Trophy } from 'lucide-react'
 import clsx from 'clsx'
@@ -180,9 +180,10 @@ function CommunityStrip() {
 
 export default function Home() {
   const { city } = useCity()
-  const { hiddenBusinesses } = useStore()
+  const { hiddenBusinesses, liveBusinesses } = useStore()
   const isLondon = city.id === 'london'
-  const cityBiz = businesses.filter(
+  const allBiz = useMemo(() => [...businesses, ...liveBusinesses], [liveBusinesses])
+  const cityBiz = allBiz.filter(
     (b) => b.cityId === city.id && !hiddenBusinesses.includes(b.id),
   )
   const topRated = [...cityBiz].sort((a, b) => b.rating - a.rating)

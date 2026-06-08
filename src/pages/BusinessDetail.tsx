@@ -99,9 +99,10 @@ function ScoreBar({ label, value }: { label: string; value: number }) {
 
 export default function BusinessDetail() {
   const { slug } = useParams()
-  const b = slug ? businessBySlug(slug) : undefined
-
-  const { statsFor, reviewsFor, dealsForBusinessId } = useStore()
+  const { statsFor, reviewsFor, dealsForBusinessId, liveBusinesses } = useStore()
+  const b = slug
+    ? (businessBySlug(slug) ?? liveBusinesses.find((b) => b.slug === slug))
+    : undefined
   const [reviewOpen, setReviewOpen] = useState(false)
   const [bookOpen, setBookOpen] = useState(false)
   const [orderOpen, setOrderOpen] = useState(false)
