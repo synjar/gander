@@ -70,6 +70,36 @@ drop policy if exists "Users manage own reviews" on public.reviews;
 create policy "Users manage own reviews"
   on public.reviews for all using (auth.uid() = author_id) with check (auth.uid() = author_id);
 
+-- Seed reviews (auto-generated for OSM-imported venues) ----------------------
+-- No FK to profiles so they can be inserted freely.
+create table if not exists public.seed_reviews (
+  id           uuid primary key default gen_random_uuid(),
+  business_id  text not null,
+  author_id    text not null,   -- persona UUID string, no FK
+  author_name  text not null,
+  author_level int  not null default 1,
+  rating       int  not null check (rating between 1 and 5),
+  food         int, service int, ambience int, value int,
+  title        text,
+  body         text not null,
+  visit_type   text,
+  created_at   timestamptz not null default now()
+);
+
+alter table public.seed_reviews enable row level security;
+
+drop policy if exists "Seed reviews are public" on public.seed_reviews;
+create policy "Seed reviews are public"
+  on public.seed_reviews for select using (true);
+
+drop policy if exists "Anyone can insert seed reviews" on public.seed_reviews;
+create policy "Anyone can insert seed reviews"
+  on public.seed_reviews for insert with check (true);
+
+drop policy if exists "Anyone can delete seed reviews" on public.seed_reviews;
+create policy "Anyone can delete seed reviews"
+  on public.seed_reviews for delete using (true);
+
 -- Favourites -----------------------------------------------------------------
 create table if not exists public.favourites (
   user_id uuid not null references auth.users on delete cascade,

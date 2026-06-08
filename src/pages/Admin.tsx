@@ -13,6 +13,8 @@ import {
   Loader2,
   MessageSquare,
   PoundSterling,
+  RefreshCw,
+  Sparkles,
   Star,
   Tag,
   Ticket,
@@ -24,6 +26,7 @@ import { cities } from '../data/cities'
 import { categories, categoryMap } from '../data/categories'
 import { useStore } from '../store/StoreContext'
 import { fetchOSMVenues, type OsmVenue } from '../lib/overpass'
+import { generateReviews } from '../lib/seedReviewGen'
 import * as db from '../lib/db'
 import { formatPrice, priceLevel } from '../lib/format'
 import Stars from '../components/Stars'
@@ -315,6 +318,106 @@ function ImportPanel() {
               </tbody>
             </table>
           </div>
+        </div>
+      )}
+    </section>
+  )
+}
+
+// ─── Seed Reviews panel ───────────────────────────────────────────────────────
+
+function ReviewsPanel() {
+  const { importedBusinesses } = useStore()
+  const [state, setState]           = useState<'idle' | 'working' | 'done'>('idle')
+  const [progress, setProgress]     = useState('')
+  const [result, setResult]         = useState<{ inserted: number } | null>(null)
+  const [error, setError]           = useState<string | null>(null)
+  const [regenerate, setRegenerate] = useState(false)
+
+  const handleGenerate = useCallback(async () => {
+    if (importedBusinesses.length === 0) return
+    setState('working')
+    setError(null)
+    setResult(null)
+
+    try {
+      // If regenerating, wipe existing seed reviews first
+      if (regenerate) {
+        setProgress('Clearing existing seed reviews…')
+        await db.deleteSeedReviews(importedBusinesses.map((b) => b.id))
+      }
+
+      // Generate reviews in batches of 50 to avoid huge payloads
+      const BATCH = 50
+      let totalInserted = 0
+      for (let i = 0; i < importedBusinesses.length; i += BATCH) {
+        const batch = importedBusinesses.slice(i, i + BATCH)
+        setProgress(`Generating reviews… ${Math.min(i + BATCH, importedBusinesses.length)} / ${importedBusinesses.length} venues`)
+        const reviews = batch.flatMap(generateReviews)
+        const { inserted } = await db.bulkSeedReviews(reviews)
+        totalInserted += inserted
+      }
+
+      setResult({ inserted: totalInserted })
+      setState('done')
+    } catch (e) {
+      setError(e instanceof Error ? e.message : String(e))
+      setState('idle')
+    }
+  }, [importedBusinesses, regenerate])
+
+  return (
+    <section className="mt-4 rounded-2xl border border-stone-200 bg-white p-5">
+      <h2 className="flex items-center gap-2 font-display text-lg font-semibold text-stone-900">
+        <Sparkles size={18} className="text-brand-500" /> Seed reviews
+      </h2>
+      <p className="mt-0.5 text-xs text-stone-500">
+        Auto-generate 2–6 realistic reviews per imported venue. Reviews are varied by
+        rating, writing style and venue type — no two businesses get the same text.
+      </p>
+
+      <div className="mt-4 flex flex-wrap items-center gap-3">
+        <span className="text-sm text-stone-600">
+          {importedBusinesses.length} imported venues loaded
+        </span>
+
+        <label className="flex cursor-pointer items-center gap-2 text-sm text-stone-600">
+          <input
+            type="checkbox"
+            checked={regenerate}
+            onChange={(e) => setRegenerate(e.target.checked)}
+            className="rounded"
+          />
+          Re-generate (wipe existing seed reviews first)
+        </label>
+
+        <button
+          onClick={handleGenerate}
+          disabled={state === 'working' || importedBusinesses.length === 0}
+          className="flex items-center gap-2 rounded-xl bg-brand-500 px-4 py-2 text-sm font-semibold text-white hover:bg-brand-600 disabled:opacity-50"
+        >
+          {state === 'working'
+            ? <><Loader2 size={15} className="animate-spin" /> Working…</>
+            : regenerate
+              ? <><RefreshCw size={15} /> Regenerate reviews</>
+              : <><Sparkles size={15} /> Generate reviews</>}
+        </button>
+      </div>
+
+      {state === 'working' && (
+        <p className="mt-3 text-xs text-stone-500">{progress}</p>
+      )}
+
+      {error && (
+        <p className="mt-3 rounded-lg bg-rose-50 px-3 py-2 text-xs text-rose-700">{error}</p>
+      )}
+
+      {result && (
+        <div className="mt-3 flex items-center gap-2 rounded-lg bg-emerald-50 px-3 py-2 text-xs font-medium text-emerald-700">
+          <Check size={14} />
+          {result.inserted > 0
+            ? `${result.inserted} reviews inserted across ${importedBusinesses.length} venues.`
+            : 'All venues already have seed reviews. Enable "Re-generate" to replace them.'}
         </div>
       )}
     </section>
@@ -628,6 +731,9 @@ export default function Admin() {
 
       {/* OSM Import */}
       <ImportPanel />
+
+      {/* Seed reviews */}
+      <ReviewsPanel />
     </div>
   )
 }

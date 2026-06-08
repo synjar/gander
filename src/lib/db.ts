@@ -9,6 +9,7 @@
 import { supabase, isSupabaseConfigured } from './supabase'
 import type { Booking, Business, BusinessSubmission, CategoryId, Deal, Review, Voucher } from '../data/types'
 import type { OsmVenue } from './overpass'
+import type { SeedReview } from './seedReviewGen'
 
 export const backendEnabled = isSupabaseConfigured
 
@@ -424,12 +425,19 @@ function relativeTime(iso: string): string {
 }
 
 export async function listAllReviews(): Promise<Review[]> {
-  const { data, error } = await client()
-    .from('reviews')
-    .select('*, author:profiles(name, avatar, level)')
-    .order('created_at', { ascending: false })
-  if (error) throw error
-  return (data ?? []).map((r) => ({
+  const [realRes, seedRes] = await Promise.all([
+    client()
+      .from('reviews')
+      .select('*, author:profiles(name, avatar, level)')
+      .order('created_at', { ascending: false }),
+    client()
+      .from('seed_reviews')
+      .select('*')
+      .order('created_at', { ascending: false }),
+  ])
+  if (realRes.error) throw realRes.error
+
+  const real: Review[] = (realRes.data ?? []).map((r) => ({
     id: r.id,
     businessId: r.business_id,
     authorId: r.author_id,
@@ -448,6 +456,64 @@ export async function listAllReviews(): Promise<Review[]> {
     likes: 0,
     visitType: r.visit_type ?? undefined,
   }))
+
+  const seed: Review[] = (seedRes.data ?? []).map((r) => ({
+    id: r.id,
+    businessId: r.business_id,
+    authorId: r.author_id,
+    authorName: r.author_name,
+    authorAvatar: '',
+    authorLevel: r.author_level ?? 1,
+    rating: r.rating,
+    food: r.food ?? undefined,
+    service: r.service ?? undefined,
+    ambience: r.ambience ?? undefined,
+    value: r.value ?? undefined,
+    date: relativeTime(r.created_at),
+    title: r.title ?? undefined,
+    body: r.body,
+    photos: [],
+    likes: 0,
+    visitType: r.visit_type ?? undefined,
+  }))
+
+  // Merge and sort by date descending
+  return [...real, ...seed].sort(
+    (a, b) => (a.date === 'Just now' ? -1 : b.date === 'Just now' ? 1 : 0),
+  )
+}
+
+// --- Seed reviews (auto-generated) ------------------------------------------
+
+/** Bulk-insert generated reviews. Skips businesses that already have seed reviews. */
+export async function bulkSeedReviews(
+  reviews: SeedReview[],
+): Promise<{ inserted: number }> {
+  if (!backendEnabled || reviews.length === 0) return { inserted: 0 }
+
+  // Find which business IDs already have seed reviews so we don't duplicate
+  const businessIds = [...new Set(reviews.map((r) => r.business_id))]
+  const { data: existing } = await client()
+    .from('seed_reviews')
+    .select('business_id')
+    .in('business_id', businessIds)
+  const doneIds = new Set((existing ?? []).map((r) => r.business_id as string))
+
+  const toInsert = reviews.filter((r) => !doneIds.has(r.business_id))
+  if (toInsert.length === 0) return { inserted: 0 }
+
+  const { data, error } = await client()
+    .from('seed_reviews')
+    .insert(toInsert)
+    .select('id')
+  if (error) throw new Error(error.message)
+  return { inserted: data?.length ?? 0 }
+}
+
+/** Delete all seed reviews for the given business IDs (for re-generation). */
+export async function deleteSeedReviews(businessIds: string[]): Promise<void> {
+  if (!backendEnabled || businessIds.length === 0) return
+  await client().from('seed_reviews').delete().in('business_id', businessIds)
 }
 
 // --- Staff management -------------------------------------------------------
