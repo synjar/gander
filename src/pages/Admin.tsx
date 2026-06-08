@@ -99,20 +99,35 @@ export default function Admin() {
   const [subTab, setSubTab] = useState<'pending' | 'approved' | 'rejected'>('pending')
   const [rejectNote, setRejectNote] = useState<Record<string, string>>({})
   const [busy, setBusy] = useState<string | null>(null)
+  const [actionError, setActionError] = useState<string | null>(null)
 
   const filteredSubs = submissions.filter((s) => s.status === subTab)
   const pendingCount = submissions.filter((s) => s.status === 'pending').length
 
   async function handleApprove(id: string) {
+    setActionError(null)
     setBusy(id)
-    await approveSubmission(id).catch(console.error)
-    setBusy(null)
+    try {
+      await approveSubmission(id)
+    } catch (err) {
+      console.error(err)
+      setActionError(err instanceof Error ? err.message : String(err))
+    } finally {
+      setBusy(null)
+    }
   }
 
   async function handleReject(id: string) {
+    setActionError(null)
     setBusy(id)
-    await rejectSubmission(id, rejectNote[id]).catch(console.error)
-    setBusy(null)
+    try {
+      await rejectSubmission(id, rejectNote[id])
+    } catch (err) {
+      console.error(err)
+      setActionError(err instanceof Error ? err.message : String(err))
+    } finally {
+      setBusy(null)
+    }
   }
 
   const revenue =
@@ -297,6 +312,16 @@ export default function Admin() {
             ))}
           </div>
         </div>
+
+        {actionError && (
+          <div className="mt-3 flex items-start gap-2 rounded-xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-700">
+            <X size={15} className="mt-0.5 shrink-0" />
+            <div>
+              <span className="font-semibold">Action failed: </span>{actionError}
+              <span className="ml-2 text-xs text-rose-500">(Check Supabase RLS policies)</span>
+            </div>
+          </div>
+        )}
 
         {filteredSubs.length === 0 ? (
           <p className="mt-4 text-sm text-stone-400">No {subTab} applications.</p>
