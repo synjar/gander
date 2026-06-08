@@ -167,6 +167,7 @@ export default function BusinessDetail() {
         heroImage: profile.heroImageUrl ?? rawB.heroImage,
         images: profile.galleryUrls.length > 0 ? profile.galleryUrls : rawB.images,
         amenities: profile.amenities.length > 0 ? profile.amenities : rawB.amenities,
+        popularDishes: (profile.popularDishes?.length ?? 0) > 0 ? profile.popularDishes : rawB.popularDishes,
         hours: customHours ?? rawB.hours,
         openNow: customOpenNow ?? rawB.openNow,
       }

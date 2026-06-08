@@ -7,7 +7,7 @@
 // in. Each function maps snake_case rows to the app's camelCase types.
 
 import { supabase, isSupabaseConfigured } from './supabase'
-import type { Booking, Business, BusinessSubmission, CategoryId, Deal, Review, Voucher } from '../data/types'
+import type { Booking, Business, BusinessSubmission, CategoryId, Deal, Dish, Review, Voucher } from '../data/types'
 import type { OsmVenue } from './overpass'
 import type { SeedReview } from './seedReviewGen'
 
@@ -620,6 +620,7 @@ export interface BusinessProfile {
   galleryUrls: string[]
   amenities: string[]
   hours?: Record<string, DayHours> // keyed by day name e.g. "Monday"
+  popularDishes: Dish[]
 }
 
 export async function getBusinessProfile(businessId: string): Promise<BusinessProfile | null> {
@@ -643,6 +644,7 @@ export async function getBusinessProfile(businessId: string): Promise<BusinessPr
     galleryUrls: (data.gallery_urls as string[]) ?? [],
     amenities: (data.amenities as string[]) ?? [],
     hours: (data.hours as Record<string, DayHours>) ?? undefined,
+    popularDishes: (data.popular_dishes as Dish[]) ?? [],
   }
 }
 
@@ -666,6 +668,7 @@ export async function saveBusinessProfile(
         gallery_urls: profile.galleryUrls ?? [],
         amenities: profile.amenities ?? [],
         hours: profile.hours ?? null,
+        popular_dishes: profile.popularDishes ?? [],
         updated_at: new Date().toISOString(),
       },
       { onConflict: 'business_id' },

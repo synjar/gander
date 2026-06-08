@@ -16,6 +16,7 @@ import {
   Star,
   Tag,
   Trash2,
+  UtensilsCrossed,
   UserPlus,
   Users,
   Wallet,
@@ -27,7 +28,7 @@ import clsx from 'clsx'
 import { businesses, businessesById } from '../data/businesses'
 import { useStore } from '../store/StoreContext'
 import { useAuth } from '../auth/AuthContext'
-import type { Business, Review } from '../data/types'
+import type { Business, Dish, Review } from '../data/types'
 import { discountPct, formatPrice } from '../lib/format'
 import * as db from '../lib/db'
 import type { StaffMember, DayHours, BusinessBooking } from '../lib/db'
@@ -632,6 +633,11 @@ function EditListingTab({ business }: { business: Business }) {
   const [gallery, setGallery] = useState<string[]>(business.images ?? [])
   const [amenities, setAmenities] = useState<string[]>(business.amenities ?? [])
   const [hours, setHours] = useState<Record<string, DayHours>>(DEFAULT_HOURS)
+  const [dishes, setDishes] = useState<Dish[]>(business.popularDishes ?? [])
+  // New dish form
+  const [newDishName, setNewDishName] = useState('')
+  const [newDishPrice, setNewDishPrice] = useState('')
+  const [newDishDesc, setNewDishDesc] = useState('')
 
   // Load saved profile
   useEffect(() => {
@@ -650,6 +656,7 @@ function EditListingTab({ business }: { business: Business }) {
           if (p.galleryUrls.length) setGallery(p.galleryUrls)
           if (p.amenities.length) setAmenities(p.amenities)
           if (p.hours) setHours(p.hours)
+          if (p.popularDishes.length) setDishes(p.popularDishes)
         }
       })
       .catch(console.error)
@@ -677,6 +684,7 @@ function EditListingTab({ business }: { business: Business }) {
         name, shortDescription: shortDesc, description: desc,
         phone, website, address, postcode,
         heroImageUrl: heroUrl, galleryUrls: gallery, amenities, hours,
+        popularDishes: dishes,
       })
       setSaved(true)
       setTimeout(() => setSaved(false), 3000)
@@ -689,6 +697,20 @@ function EditListingTab({ business }: { business: Business }) {
 
   function toggleAmenity(a: string) {
     setAmenities((prev) => prev.includes(a) ? prev.filter((x) => x !== a) : [...prev, a])
+  }
+
+  function addDish() {
+    const name = newDishName.trim()
+    const price = parseFloat(newDishPrice)
+    if (!name || isNaN(price) || price < 0) return
+    const dish: Dish = { name, price: Math.round(price * 100) }
+    if (newDishDesc.trim()) dish.description = newDishDesc.trim()
+    setDishes((prev) => [...prev, dish])
+    setNewDishName(''); setNewDishPrice(''); setNewDishDesc('')
+  }
+
+  function removeDish(index: number) {
+    setDishes((prev) => prev.filter((_, i) => i !== index))
   }
 
   if (loading) return (
@@ -754,6 +776,87 @@ function EditListingTab({ business }: { business: Business }) {
             <HoursEditor hours={hours} onChange={setHours} />
           </div>
         </section>
+
+        {/* Popular dishes — restaurants & food venues */}
+        {['restaurants', 'cafes', 'bars', 'pubs'].includes(business.category) && (
+          <section className="rounded-2xl border border-stone-200 bg-white p-5">
+            <h2 className="flex items-center gap-2 font-display text-lg font-semibold text-stone-900">
+              <UtensilsCrossed size={18} className="text-brand-500" />
+              Popular dishes
+            </h2>
+            <p className="mt-0.5 text-sm text-stone-500">
+              Highlight up to 10 dishes on your public listing — customers love seeing what's good here.
+            </p>
+
+            {/* Existing dishes */}
+            {dishes.length > 0 && (
+              <ul className="mt-4 divide-y divide-stone-100 rounded-xl border border-stone-200">
+                {dishes.map((dish, i) => (
+                  <li key={i} className="flex items-start gap-3 px-4 py-3">
+                    <div className="min-w-0 flex-1">
+                      <p className="text-sm font-semibold text-stone-900">{dish.name}</p>
+                      {dish.description && (
+                        <p className="mt-0.5 text-xs text-stone-500 line-clamp-1">{dish.description}</p>
+                      )}
+                    </div>
+                    <span className="shrink-0 text-sm font-semibold text-stone-700">
+                      £{(dish.price / 100).toFixed(2)}
+                    </span>
+                    <button
+                      type="button"
+                      onClick={() => removeDish(i)}
+                      className="shrink-0 rounded-lg p-1 text-stone-400 transition hover:bg-rose-50 hover:text-rose-500"
+                      aria-label="Remove dish"
+                    >
+                      <Trash2 size={14} />
+                    </button>
+                  </li>
+                ))}
+              </ul>
+            )}
+
+            {/* Add dish form */}
+            {dishes.length < 10 && (
+              <div className="mt-4 rounded-xl border border-dashed border-stone-200 p-3">
+                <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-stone-400">Add a dish</p>
+                <div className="grid grid-cols-[1fr_6rem] gap-2">
+                  <input
+                    value={newDishName}
+                    onChange={(e) => setNewDishName(e.target.value)}
+                    placeholder="e.g. Truffle Fries"
+                    className="rounded-lg border border-stone-200 px-3 py-2 text-sm outline-none focus:border-brand-400"
+                    onKeyDown={(e) => e.key === 'Enter' && addDish()}
+                  />
+                  <input
+                    type="number"
+                    value={newDishPrice}
+                    onChange={(e) => setNewDishPrice(e.target.value)}
+                    placeholder="Price £"
+                    min="0"
+                    step="0.50"
+                    className="rounded-lg border border-stone-200 px-3 py-2 text-sm outline-none focus:border-brand-400"
+                    onKeyDown={(e) => e.key === 'Enter' && addDish()}
+                  />
+                </div>
+                <input
+                  value={newDishDesc}
+                  onChange={(e) => setNewDishDesc(e.target.value)}
+                  placeholder="Short description (optional)"
+                  className="mt-2 w-full rounded-lg border border-stone-200 px-3 py-2 text-sm outline-none focus:border-brand-400"
+                  onKeyDown={(e) => e.key === 'Enter' && addDish()}
+                />
+                <button
+                  type="button"
+                  onClick={addDish}
+                  disabled={!newDishName.trim() || !newDishPrice}
+                  className="mt-2 flex items-center gap-1.5 rounded-full bg-brand-500 px-4 py-1.5 text-xs font-semibold text-white transition hover:bg-brand-600 disabled:opacity-40"
+                >
+                  <Plus size={13} /> Add dish
+                </button>
+              </div>
+            )}
+          </section>
+        )}
 
         {/* Details */}
         <section className="rounded-2xl border border-stone-200 bg-white p-5">
