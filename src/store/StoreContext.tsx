@@ -143,8 +143,8 @@ interface StoreValue extends Persisted {
   backendSynced: boolean
   /** OSM-imported stub listings (not yet claimed by owners) */
   importedBusinesses: Business[]
-  /** Bulk-import OSM venues; returns imported + skipped counts */
-  importBusinesses: (venues: import('../lib/overpass').OsmVenue[]) => Promise<{ imported: number; skipped: number }>
+  /** Bulk-import OSM venues; returns inserted/updated/skippedClaimed counts */
+  importBusinesses: (venues: import('../lib/overpass').OsmVenue[]) => Promise<{ inserted: number; updated: number; skippedClaimed: number }>
 }
 
 const StoreContext = createContext<StoreValue | null>(null)

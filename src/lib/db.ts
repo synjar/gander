@@ -995,11 +995,35 @@ export async function getVoucherRevenueTrend(businessId: string): Promise<Monthl
 
 // --- Imported businesses (OSM) ----------------------------------------------
 
-/** Bulk-upsert OSM venues into imported_businesses, skipping any that already exist. */
-export async function importOSMVenues(venues: OsmVenue[]): Promise<{ imported: number; skipped: number }> {
-  if (!backendEnabled || venues.length === 0) return { imported: 0, skipped: 0 }
+/**
+ * Bulk-upsert OSM venues into imported_businesses.
+ * - New venues are inserted.
+ * - Existing unclaimed venues are updated (refreshes hours, phone, photos etc).
+ * - Claimed venues are never touched so owner data is preserved.
+ * Returns { inserted, updated, skippedClaimed }.
+ */
+export async function importOSMVenues(
+  venues: OsmVenue[],
+): Promise<{ inserted: number; updated: number; skippedClaimed: number }> {
+  if (!backendEnabled || venues.length === 0)
+    return { inserted: 0, updated: 0, skippedClaimed: 0 }
 
-  const rows = venues.map((v) => ({
+  // Find which of these OSM IDs are already claimed so we don't overwrite them
+  const osmIds = venues.map((v) => v.osmId)
+  const { data: existing } = await client()
+    .from('imported_businesses')
+    .select('osm_id, claimed, id')
+    .in('osm_id', osmIds)
+
+  const claimedIds  = new Set((existing ?? []).filter((r) => r.claimed).map((r) => r.osm_id as string))
+  const existingIds = new Set((existing ?? []).map((r) => r.osm_id as string))
+
+  const toUpsert = venues.filter((v) => !claimedIds.has(v.osmId))
+  const skippedClaimed = venues.length - toUpsert.length
+
+  if (toUpsert.length === 0) return { inserted: 0, updated: 0, skippedClaimed }
+
+  const rows = toUpsert.map((v) => ({
     osm_id:            v.osmId,
     name:              v.name,
     slug:              v.slug,
@@ -1025,15 +1049,19 @@ export async function importOSMVenues(venues: OsmVenue[]): Promise<{ imported: n
     price_level:       v.priceLevel,
   }))
 
-  // upsert — on conflict (osm_id) do nothing
+  // ignoreDuplicates:false → ON CONFLICT DO UPDATE (refreshes existing rows)
   const { data, error } = await client()
     .from('imported_businesses')
-    .upsert(rows, { onConflict: 'osm_id', ignoreDuplicates: true })
-    .select('id')
+    .upsert(rows, { onConflict: 'osm_id', ignoreDuplicates: false })
+    .select('id, osm_id')
 
   if (error) throw new Error(error.message)
-  const imported = data?.length ?? 0
-  return { imported, skipped: venues.length - imported }
+
+  const upserted = data ?? []
+  const inserted = upserted.filter((r) => !existingIds.has(r.osm_id as string)).length
+  const updated  = upserted.length - inserted
+
+  return { inserted, updated, skippedClaimed }
 }
 
 /** Fetch all active imported businesses, optionally filtered by cityId. */

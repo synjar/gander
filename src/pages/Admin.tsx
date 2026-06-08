@@ -99,7 +99,8 @@ function ImportPanel() {
   const [venues, setVenues]               = useState<OsmVenue[]>([])
   const [existingIds, setExistingIds]     = useState<Set<string>>(new Set())
   const [selected, setSelected]           = useState<Set<string>>(new Set())
-  const [importResult, setImportResult]   = useState<{ imported: number; skipped: number } | null>(null)
+  const [importResult, setImportResult]   = useState<{ inserted: number; updated: number; skippedClaimed: number } | null>(null)
+  const [selectMode, setSelectMode]       = useState<'new' | 'all'>('new')
 
   const handleFetch = useCallback(async () => {
     setFetchState('fetching')
@@ -115,9 +116,8 @@ function ImportPanel() {
       if (error) { setFetchError(error); setFetchState('idle'); return }
       setVenues(fetched)
       setExistingIds(existIds)
-      // Auto-select only new venues
-      const newIds = new Set(fetched.filter((v) => !existIds.has(v.osmId)).map((v) => v.osmId))
-      setSelected(newIds)
+      // Auto-select only new venues by default
+      setSelected(new Set(fetched.filter((v) => !existIds.has(v.osmId)).map((v) => v.osmId)))
       setFetchState('done')
     } catch (e) {
       setFetchError(e instanceof Error ? e.message : String(e))
@@ -132,7 +132,6 @@ function ImportPanel() {
     try {
       const result = await importBusinesses(toImport)
       setImportResult(result)
-      // Refresh existing IDs so UI reflects what's now in DB
       const existIds = await db.getImportedOsmIds(cityId)
       setExistingIds(existIds)
       setSelected(new Set())
@@ -143,12 +142,24 @@ function ImportPanel() {
     }
   }, [venues, selected, importBusinesses, cityId])
 
+  // When select mode changes, recompute selection
+  const handleSelectModeChange = useCallback((mode: 'new' | 'all') => {
+    setSelectMode(mode)
+    if (mode === 'all') {
+      setSelected(new Set(venues.map((v) => v.osmId)))
+    } else {
+      setSelected(new Set(venues.filter((v) => !existingIds.has(v.osmId)).map((v) => v.osmId)))
+    }
+  }, [venues, existingIds])
+
   const toggleAll = useCallback(() => {
-    const newOnes = venues.filter((v) => !existingIds.has(v.osmId)).map((v) => v.osmId)
-    if (selected.size === newOnes.length) {
+    const pool = selectMode === 'all'
+      ? venues.map((v) => v.osmId)
+      : venues.filter((v) => !existingIds.has(v.osmId)).map((v) => v.osmId)
+    if (selected.size === pool.length) {
       setSelected(new Set())
     } else {
-      setSelected(new Set(newOnes))
+      setSelected(new Set(pool))
     }
   }, [venues, existingIds, selected])
 
@@ -197,7 +208,7 @@ function ImportPanel() {
           >
             {fetchState === 'importing'
               ? <><Loader2 size={15} className="animate-spin" /> Importing…</>
-              : <><Download size={15} /> Import {selected.size} selected</>}
+              : <><Download size={15} /> {selected.size} selected — import / update</>}
           </button>
         )}
       </div>
@@ -207,20 +218,39 @@ function ImportPanel() {
       )}
 
       {importResult && (
-        <div className="mt-3 flex items-center gap-2 rounded-lg bg-emerald-50 px-3 py-2 text-xs font-medium text-emerald-700">
-          <Check size={14} />
-          Imported {importResult.imported} new venues
-          {importResult.skipped > 0 && `, skipped ${importResult.skipped} already present`}.
+        <div className="mt-3 flex flex-wrap items-center gap-x-4 gap-y-1 rounded-lg bg-emerald-50 px-3 py-2 text-xs font-medium text-emerald-700">
+          <span className="flex items-center gap-1.5"><Check size={14} /> Done</span>
+          {importResult.inserted > 0 && <span>{importResult.inserted} new venues added</span>}
+          {importResult.updated  > 0 && <span>{importResult.updated} existing venues refreshed</span>}
+          {importResult.skippedClaimed > 0 && (
+            <span className="text-amber-600">{importResult.skippedClaimed} claimed listings left untouched</span>
+          )}
         </div>
       )}
 
       {/* Preview table */}
       {venues.length > 0 && (
         <div className="mt-4">
-          <div className="flex items-center gap-3 text-xs text-stone-500">
+          <div className="flex flex-wrap items-center gap-3 text-xs text-stone-500">
             <span>{venues.length} venues fetched</span>
             <span className="text-emerald-600">{newCount} new</span>
-            {alreadyCount > 0 && <span className="text-stone-400">{alreadyCount} already imported</span>}
+            {alreadyCount > 0 && <span className="text-stone-400">{alreadyCount} already in DB</span>}
+            {alreadyCount > 0 && (
+              <div className="ml-auto flex gap-1 rounded-lg border border-stone-200 p-0.5">
+                {(['new', 'all'] as const).map((m) => (
+                  <button
+                    key={m}
+                    onClick={() => handleSelectModeChange(m)}
+                    className={clsx(
+                      'rounded-md px-2.5 py-1 text-xs font-medium transition',
+                      selectMode === m ? 'bg-stone-900 text-white' : 'text-stone-500 hover:text-stone-800',
+                    )}
+                  >
+                    {m === 'new' ? 'New only' : 'All (re-import)'}
+                  </button>
+                ))}
+              </div>
+            )}
           </div>
           <div className="mt-2 max-h-96 overflow-y-auto rounded-xl border border-stone-200">
             <table className="w-full text-sm">
@@ -229,7 +259,7 @@ function ImportPanel() {
                   <th className="px-3 py-2">
                     <input
                       type="checkbox"
-                      checked={selected.size === newCount && newCount > 0}
+                      checked={selected.size > 0 && selected.size === (selectMode === 'all' ? venues.length : newCount)}
                       onChange={toggleAll}
                       className="rounded"
                     />
@@ -249,14 +279,13 @@ function ImportPanel() {
                       key={v.osmId}
                       className={clsx(
                         'transition',
-                        already ? 'opacity-40' : 'hover:bg-stone-50',
+                        already ? 'bg-stone-50/60' : 'hover:bg-stone-50',
                       )}
                     >
                       <td className="px-3 py-2">
                         <input
                           type="checkbox"
                           checked={isSelected}
-                          disabled={already}
                           onChange={() => {
                             setSelected((prev) => {
                               const next = new Set(prev)
@@ -275,7 +304,7 @@ function ImportPanel() {
                       <td className="px-3 py-2 text-stone-500">{v.neighbourhood}</td>
                       <td className="px-3 py-2">
                         {already ? (
-                          <span className="rounded-full bg-stone-100 px-2 py-0.5 text-xs text-stone-400">Imported</span>
+                          <span className="rounded-full bg-sky-50 px-2 py-0.5 text-xs text-sky-600">In DB</span>
                         ) : (
                           <span className="rounded-full bg-emerald-50 px-2 py-0.5 text-xs text-emerald-600">New</span>
                         )}
