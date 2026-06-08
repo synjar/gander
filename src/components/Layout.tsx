@@ -2,6 +2,7 @@ import { Outlet, ScrollRestoration } from 'react-router-dom'
 import Header from './Header'
 import Footer from './Footer'
 import BottomNav from './BottomNav'
+import Toaster from './Toaster'
 
 export default function Layout() {
   return (
@@ -12,6 +13,7 @@ export default function Layout() {
       </main>
       <Footer />
       <BottomNav />
+      <Toaster />
       <ScrollRestoration />
     </div>
   )

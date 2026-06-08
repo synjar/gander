@@ -5,6 +5,7 @@ import type { Business } from '../data/types'
 import { categoryMap } from '../data/categories'
 import { dealsForBusiness } from '../data/deals'
 import { priceLevel } from '../lib/format'
+import { getOpenStatus } from '../lib/hours'
 import { useStore } from '../store/StoreContext'
 import SmartImage from './SmartImage'
 import Stars from './Stars'
@@ -22,6 +23,7 @@ export default function BusinessCard({ business: b, className, showRank, distanc
   const { rating, reviewCount } = statsFor(b)
   const emoji = categoryMap[b.category].emoji
   const hasDeal = dealsForBusiness(b.id).length > 0
+  const openStatus = getOpenStatus(b.hours)
 
   return (
     <Link
@@ -84,7 +86,20 @@ export default function BusinessCard({ business: b, className, showRank, distanc
           )}
         </p>
 
-        <div className="mt-2.5 flex flex-wrap gap-1.5">
+        <div className="mt-2 flex flex-wrap items-center gap-1.5">
+          {openStatus && (
+            <span
+              className={clsx(
+                'rounded-md px-2 py-0.5 text-[11px] font-semibold',
+                openStatus.open
+                  ? 'bg-emerald-50 text-emerald-700'
+                  : 'bg-stone-100 text-stone-500',
+              )}
+              title={openStatus.label}
+            >
+              {openStatus.open ? '● Open' : '○ Closed'}
+            </span>
+          )}
           {b.tags.slice(0, 2).map((t) => (
             <span
               key={t}

@@ -18,6 +18,7 @@ import clsx from 'clsx'
 import { businessBySlug, businesses } from '../data/businesses'
 import { categoryMap } from '../data/categories'
 import { priceLevel, formatPrice, ratingLabel, discountPct } from '../lib/format'
+import { getOpenStatus } from '../lib/hours'
 import { useStore } from '../store/StoreContext'
 import type { Business } from '../data/types'
 import * as db from '../lib/db'
@@ -273,14 +274,21 @@ export default function BusinessDetail() {
               <MapPin size={14} className="text-stone-400" />
               {b.neighbourhood}
             </span>
-            <span
-              className={clsx(
-                'rounded-full px-2 py-0.5 text-xs font-semibold',
-                b.openNow ? 'bg-emerald-100 text-emerald-700' : 'bg-stone-100 text-stone-500',
-              )}
-            >
-              {b.openNow ? 'Open now' : 'Closed'}
-            </span>
+            {(() => {
+              const s = getOpenStatus(b.hours)
+              if (!s) return null
+              return (
+                <span
+                  className={clsx(
+                    'rounded-full px-2 py-0.5 text-xs font-semibold',
+                    s.open ? 'bg-emerald-100 text-emerald-700' : 'bg-stone-100 text-stone-500',
+                  )}
+                  title={s.label}
+                >
+                  {s.label}
+                </span>
+              )
+            })()}
           </div>
           <div className="mt-3 flex flex-wrap gap-1.5">
             {b.tags.map((t) => (

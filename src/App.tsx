@@ -15,6 +15,7 @@ import BusinessOnboarding from './pages/BusinessOnboarding'
 import Redeem from './pages/Redeem'
 import StaffScanner from './pages/StaffScanner'
 import StripeConnectCallback from './pages/StripeConnectCallback'
+import UserProfile from './pages/UserProfile'
 import Admin from './pages/Admin'
 import NotFound from './pages/NotFound'
 
@@ -35,6 +36,7 @@ const router = createBrowserRouter([
       { path: 'staff/scan', element: <StaffScanner /> },
       { path: 'business/stripe-connect', element: <StripeConnectCallback /> },
       { path: 'business/dashboard', element: <MerchantDashboard /> },
+      { path: 'u/:userId', element: <UserProfile /> },
       { path: 'admin', element: <Admin /> },
       { path: '*', element: <NotFound /> },
     ],

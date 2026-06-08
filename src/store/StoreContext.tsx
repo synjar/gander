@@ -20,7 +20,8 @@ import {
   sendDealReceipt,
   sendBusinessApproved,
 } from '../lib/email'
-import { XP } from '../lib/xp'
+import { XP, getLevel, getLevelName } from '../lib/xp'
+import { toast } from '../lib/toast'
 
 const LS_KEY = 'gander.state.v1'
 
@@ -162,6 +163,9 @@ export function StoreProvider({ children }: { children: ReactNode }) {
     [user.id, user.name, user.avatar],
   )
 
+  // Track current points so we can detect level-ups client-side
+  const [userPoints, setUserPoints] = useState(0)
+
   const initial = useMemo(() => (db.backendEnabled ? EMPTY : load()), [])
   const [userReviews, setUserReviews] = useState<Review[]>(initial.userReviews)
   const [backendReviews, setBackendReviews] = useState<Review[]>([])
@@ -289,15 +293,17 @@ export function StoreProvider({ children }: { children: ReactNode }) {
     void reloadPublic().catch(logError('reload public on sign-in'))
     void (async () => {
       try {
-        const [favs, bks, vchs] = await Promise.all([
+        const [favs, bks, vchs, pts] = await Promise.all([
           db.listFavourites(backendUserId),
           db.listBookings(backendUserId),
           db.listVouchers(backendUserId),
+          db.getUserPoints(backendUserId),
         ])
         if (cancelled) return
         setFavourites(favs)
         setBookings(bks)
         setVouchers(vchs)
+        setUserPoints(pts.points)
       } catch (e) {
         logError('hydrate user')(e)
       }
@@ -321,6 +327,19 @@ export function StoreProvider({ children }: { children: ReactNode }) {
       cancelled = true
     }
   }, [backendUserId])
+
+  /** Award XP to the signed-in user, firing a toast if they level up. */
+  const awardXP = useCallback((amount: number) => {
+    if (!backendUserId) return
+    const oldLevel = getLevel(userPoints)
+    const newPoints = userPoints + amount
+    const newLevel = getLevel(newPoints)
+    setUserPoints(newPoints)
+    if (newLevel > oldLevel) {
+      toast.levelUp(getLevelName(newLevel), newLevel)
+    }
+    void db.awardPoints(backendUserId, amount)
+  }, [backendUserId, userPoints])
 
   const allReviews = useMemo(
     () => (db.backendEnabled ? [...backendReviews, ...seedReviews] : [...userReviews, ...seedReviews]),
@@ -414,13 +433,13 @@ export function StoreProvider({ children }: { children: ReactNode }) {
             link: '/business/dashboard',
           })
           // Award XP for posting a review
-          void db.awardPoints(backendUserId, XP.REVIEW)
+          awardXP(XP.REVIEW)
         }
       } else {
         setUserReviews((prev) => [r, ...prev])
       }
     },
-    [backendUserId, backendUser, reloadPublic],
+    [backendUserId, backendUser, reloadPublic, awardXP],
   )
 
   const addBooking = useCallback(
@@ -470,11 +489,11 @@ export function StoreProvider({ children }: { children: ReactNode }) {
           link: '/business/dashboard',
         })
         // Award XP for making a booking
-        void db.awardPoints(backendUserId, XP.BOOKING)
+        awardXP(XP.BOOKING)
       }
       return b
     },
-    [backendUserId, backendUser, session, reloadUser],
+    [backendUserId, backendUser, session, reloadUser, awardXP],
   )
 
   const cancelBooking = useCallback(
@@ -531,11 +550,11 @@ export function StoreProvider({ children }: { children: ReactNode }) {
           link: '/business/dashboard',
         })
         // Award XP for buying a deal
-        void db.awardPoints(backendUserId, XP.DEAL)
+        awardXP(XP.DEAL)
       }
       return v
     },
-    [backendUserId, backendUser, session],
+    [backendUserId, backendUser, session, awardXP],
   )
 
   const toggleReviewLike = useCallback((id: string) => {

@@ -16,6 +16,39 @@ function client() {
   return supabase
 }
 
+// --- Profiles ---------------------------------------------------------------
+
+export interface PublicProfile {
+  id: string
+  name: string
+  avatar?: string
+  level: number
+  points: number
+  bio?: string
+  neighbourhood?: string
+  joined: string // formatted date string
+}
+
+export async function getProfile(userId: string): Promise<PublicProfile | null> {
+  if (!backendEnabled) return null
+  const { data } = await client()
+    .from('profiles')
+    .select('id, name, avatar, level, points, bio, neighbourhood, created_at')
+    .eq('id', userId)
+    .maybeSingle()
+  if (!data) return null
+  return {
+    id: data.id,
+    name: data.name,
+    avatar: data.avatar ?? undefined,
+    level: data.level ?? 1,
+    points: data.points ?? 0,
+    bio: data.bio ?? undefined,
+    neighbourhood: data.neighbourhood ?? undefined,
+    joined: new Date(data.created_at as string).toLocaleDateString('en-GB', { month: 'long', year: 'numeric' }),
+  }
+}
+
 // --- Favourites ------------------------------------------------------------
 export async function listFavourites(userId: string): Promise<string[]> {
   const { data, error } = await client()
@@ -957,6 +990,27 @@ export async function getVoucherRevenueTrend(businessId: string): Promise<Monthl
     byMonth[key].count += 1
   }
   return Object.entries(byMonth).map(([month, v]) => ({ month, ...v }))
+}
+
+/** Returns business IDs ordered by review count in the last 30 days (for Trending section) */
+export async function getTrendingBusinessIds(limit = 8): Promise<string[]> {
+  if (!backendEnabled) return []
+  const since = new Date()
+  since.setDate(since.getDate() - 30)
+  const { data } = await client()
+    .from('reviews')
+    .select('business_id')
+    .gte('created_at', since.toISOString())
+  if (!data || data.length === 0) return []
+  const counts: Record<string, number> = {}
+  for (const row of data) {
+    const id = row.business_id as string
+    counts[id] = (counts[id] ?? 0) + 1
+  }
+  return Object.entries(counts)
+    .sort((a, b) => b[1] - a[1])
+    .slice(0, limit)
+    .map(([id]) => id)
 }
 
 export async function getBookingsByDayOfWeek(businessId: string): Promise<DayBookings[]> {

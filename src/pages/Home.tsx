@@ -1,4 +1,4 @@
-import { useState, useMemo, type FormEvent } from 'react'
+import { useState, useMemo, useEffect, type FormEvent } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import { Helmet } from 'react-helmet-async'
 import { Search, Sparkles, Star, TrendingUp, Trophy } from 'lucide-react'
@@ -10,6 +10,7 @@ import { cities } from '../data/cities'
 import { seedFeed } from '../data/feed'
 import { useCity } from '../city/CityContext'
 import { useStore } from '../store/StoreContext'
+import * as db from '../lib/db'
 import { Section, Carousel } from '../components/Section'
 import BusinessCard from '../components/BusinessCard'
 import DealCard from '../components/DealCard'
@@ -194,8 +195,29 @@ export default function Home() {
 
   const ranked = cityBiz.filter((b) => b.rank).sort((a, b) => (a.rank ?? 99) - (b.rank ?? 99))
   const mustEat = ranked.length ? ranked : topRated.slice(0, 8)
-  const trending = topRated.slice(0, 8)
   const cityDeals = deals.filter((d) => businessesById[d.businessId]?.cityId === city.id)
+
+  // Trending: load from Supabase (real recent reviews), fall back to top-rated mix
+  const [trendingIds, setTrendingIds] = useState<string[]>([])
+  useEffect(() => {
+    db.getTrendingBusinessIds(8).then(setTrendingIds)
+  }, [])
+
+  const trending = useMemo(() => {
+    if (trendingIds.length > 0) {
+      const fromBackend = trendingIds
+        .map((id) => cityBiz.find((b) => b.id === id))
+        .filter(Boolean) as typeof cityBiz
+      // Pad with top-rated if backend didn't return enough for this city
+      const ids = new Set(fromBackend.map((b) => b.id))
+      const fallback = topRated.filter((b) => !ids.has(b.id))
+      return [...fromBackend, ...fallback].slice(0, 8)
+    }
+    // No backend data: mix of high-review-count and high-rated for variety
+    return [...cityBiz]
+      .sort((a, b) => (b.reviewCount * 0.6 + b.rating * 40) - (a.reviewCount * 0.6 + a.rating * 40))
+      .slice(0, 8)
+  }, [trendingIds, cityBiz, topRated])
 
   return (
     <>
