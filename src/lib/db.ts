@@ -591,17 +591,32 @@ export interface BusinessBooking {
 }
 
 export async function listBusinessBookings(businessId: string): Promise<BusinessBooking[]> {
-  const { data, error } = await client()
+  // Fetch bookings first
+  const { data: bookingRows, error } = await client()
     .from('bookings')
-    .select('*, customer:profiles(name)')
+    .select('*')
     .eq('business_id', businessId)
     .order('date', { ascending: true })
     .order('time', { ascending: true })
-  if (error) throw error
-  return (data ?? []).map((r) => ({
+  if (error) throw new Error(error.message)
+
+  if (!bookingRows || bookingRows.length === 0) return []
+
+  // Fetch matching profiles to get customer names
+  const userIds = [...new Set(bookingRows.map((r) => r.user_id as string))]
+  const { data: profileRows } = await client()
+    .from('profiles')
+    .select('id, name')
+    .in('id', userIds)
+  const nameById: Record<string, string> = {}
+  for (const p of profileRows ?? []) {
+    nameById[p.id as string] = p.name as string
+  }
+
+  return bookingRows.map((r) => ({
     id: r.id,
     userId: r.user_id,
-    customerName: (r.customer as { name?: string } | null)?.name ?? 'Guest',
+    customerName: nameById[r.user_id as string] ?? 'Guest',
     businessId: r.business_id,
     businessName: r.business_name,
     date: r.date,

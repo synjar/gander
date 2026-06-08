@@ -257,7 +257,14 @@ function BookingsTab({ business }: { business: Business }) {
     setLoading(true)
     db.listBusinessBookings(business.id)
       .then(setBookings)
-      .catch((e: unknown) => setError(e instanceof Error ? e.message : String(e)))
+      .catch((e: unknown) => {
+        const msg =
+          e instanceof Error ? e.message
+          : typeof e === 'object' && e !== null && 'message' in e
+          ? String((e as { message: unknown }).message)
+          : String(e)
+        setError(msg)
+      })
       .finally(() => setLoading(false))
   }, [business.id, configured])
 
