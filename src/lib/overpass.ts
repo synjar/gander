@@ -526,43 +526,54 @@ out center tags ${limit};
 /**
  * Query Overpass for named attractions (parks, piers, museums, castles, etc.)
  * within a city area. Uses tourism/historic/leisure/natural keys rather than amenity.
+ *
+ * To avoid Overpass timeouts on large areas we split the query into one small
+ * request per tag-group and merge the results. Each sub-query is fast; a single
+ * combined query across all tag types reliably times out for county-sized areas.
  */
 export async function fetchOSMAttractions(
   cityId: string,
   limit = 300,
+  onProgress?: (done: number, total: number) => void,
 ): Promise<{ venues: OsmVenue[]; error?: string }> {
   const areaQuery = AREA_QUERIES[cityId]
   if (!areaQuery) return { venues: [], error: `No Overpass query defined for city: ${cityId}` }
 
-  // Use node + way (not nwr — relations are expensive and rarely needed for UK attractions).
-  // way outputs use `out center` to get a centroid lat/lon.
-  //
-  // leisure=park is intentionally excluded — it matches thousands of pocket greens in
-  // cities and reliably causes timeouts. Notable parks are captured via tourism=attraction.
-  const query = `
-[out:json][timeout:120];
-${areaQuery};
-(
-  node[tourism~"^(attraction|museum|gallery|aquarium|zoo|theme_park|viewpoint)$"]["name"](area.a);
-  way[tourism~"^(attraction|museum|gallery|aquarium|zoo|theme_park|viewpoint)$"]["name"](area.a);
-  node[historic~"^(castle|monument)$"]["name"](area.a);
-  way[historic~"^(castle|monument)$"]["name"](area.a);
-  node[leisure~"^(marina|nature_reserve)$"]["name"](area.a);
-  way[leisure~"^(marina|nature_reserve)$"]["name"](area.a);
-  node[man_made~"^(pier|lighthouse|windmill)$"]["name"](area.a);
-  way[man_made~"^(pier|lighthouse|windmill)$"]["name"](area.a);
-  node[natural=beach]["name"](area.a);
-  way[natural=beach]["name"](area.a);
-);
-out center tags ${limit};
-`.trim()
+  // leisure=park intentionally excluded — matches thousands of pocket greens in cities
+  // and reliably causes timeouts. Notable parks appear via tourism=attraction.
+  const subQueryDefs = [
+    { label: 'tourism',  q: `node[tourism~"^(attraction|museum|gallery|aquarium|zoo|theme_park|viewpoint)$"]["name"](area.a);\n  way[tourism~"^(attraction|museum|gallery|aquarium|zoo|theme_park|viewpoint)$"]["name"](area.a);` },
+    { label: 'historic', q: `node[historic~"^(castle|monument)$"]["name"](area.a);\n  way[historic~"^(castle|monument)$"]["name"](area.a);` },
+    { label: 'leisure',  q: `node[leisure~"^(marina|nature_reserve)$"]["name"](area.a);\n  way[leisure~"^(marina|nature_reserve)$"]["name"](area.a);` },
+    { label: 'man_made', q: `node[man_made~"^(pier|lighthouse|windmill)$"]["name"](area.a);\n  way[man_made~"^(pier|lighthouse|windmill)$"]["name"](area.a);` },
+    { label: 'natural',  q: `node[natural=beach]["name"](area.a);\n  way[natural=beach]["name"](area.a);` },
+  ]
 
-  let data: { elements: OsmElement[] }
-  try {
-    data = await overpassPost(query)
-  } catch (e) {
-    return { venues: [], error: e instanceof Error ? e.message : String(e) }
+  const allElements: OsmElement[] = []
+  const subErrors: string[] = []
+
+  for (let i = 0; i < subQueryDefs.length; i++) {
+    onProgress?.(i, subQueryDefs.length)
+    const { label, q } = subQueryDefs[i]
+    const query = `[out:json][timeout:60];\n${areaQuery};\n(\n  ${q}\n);\nout center tags 200;`
+    try {
+      const data = await overpassPost(query)
+      allElements.push(...data.elements)
+    } catch (e) {
+      const msg = e instanceof Error ? e.message : String(e)
+      console.warn(`Attractions sub-query (${label}) failed:`, msg)
+      subErrors.push(`${label}: ${msg}`)
+    }
   }
+  onProgress?.(subQueryDefs.length, subQueryDefs.length)
+
+  // If every sub-query failed, return an error
+  if (subErrors.length === subQueryDefs.length) {
+    return { venues: [], error: subErrors[0] }
+  }
+
+  // Cap total results
+  const elements = allElements.slice(0, limit)
 
   const venues: OsmVenue[] = []
   const seenIds = new Set<string>()

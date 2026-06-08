@@ -327,12 +327,21 @@ function ImportPanel() {
 
 // ─── Attractions import panel ─────────────────────────────────────────────────
 
+const FETCH_STEP_LABELS = [
+  'museums & galleries',
+  'historic sites',
+  'marinas & reserves',
+  'piers & landmarks',
+  'beaches',
+]
+
 function AttractionsPanel() {
   const { importBusinesses } = useStore()
 
   const [cityId, setCityId]             = useState('west-sussex')
   const [fetchState, setFetchState]     = useState<'idle' | 'fetching' | 'done' | 'importing'>('idle')
   const [fetchError, setFetchError]     = useState<string | null>(null)
+  const [fetchProgress, setFetchProgress] = useState<{ done: number; total: number } | null>(null)
   const [venues, setVenues]             = useState<OsmVenue[]>([])
   const [existingIds, setExistingIds]   = useState<Set<string>>(new Set())
   const [selected, setSelected]         = useState<Set<string>>(new Set())
@@ -342,20 +351,23 @@ function AttractionsPanel() {
   const handleFetch = useCallback(async () => {
     setFetchState('fetching')
     setFetchError(null)
+    setFetchProgress(null)
     setVenues([])
     setSelected(new Set())
     setImportResult(null)
     try {
       const [{ venues: fetched, error }, existIds] = await Promise.all([
-        fetchOSMAttractions(cityId, 300),
+        fetchOSMAttractions(cityId, 300, (done, total) => setFetchProgress({ done, total })),
         db.getImportedOsmIds(cityId),
       ])
+      setFetchProgress(null)
       if (error) { setFetchError(error); setFetchState('idle'); return }
       setVenues(fetched)
       setExistingIds(existIds)
       setSelected(new Set(fetched.filter((v) => !existIds.has(v.osmId)).map((v) => v.osmId)))
       setFetchState('done')
     } catch (e) {
+      setFetchProgress(null)
       setFetchError(e instanceof Error ? e.message : String(e))
       setFetchState('idle')
     }
@@ -443,6 +455,26 @@ function AttractionsPanel() {
           </button>
         )}
       </div>
+
+      {/* Progress bar — shown while sub-queries run sequentially */}
+      {fetchState === 'fetching' && fetchProgress && (
+        <div className="mt-3">
+          <div className="mb-1 flex items-center justify-between text-xs text-stone-500">
+            <span>
+              {fetchProgress.done < fetchProgress.total
+                ? <>Fetching <span className="font-medium text-teal-700">{FETCH_STEP_LABELS[fetchProgress.done]}</span>…</>
+                : 'Finishing up…'}
+            </span>
+            <span>{fetchProgress.done} / {fetchProgress.total}</span>
+          </div>
+          <div className="h-1.5 w-full overflow-hidden rounded-full bg-stone-100">
+            <div
+              className="h-full rounded-full bg-teal-500 transition-all duration-300"
+              style={{ width: `${(fetchProgress.done / fetchProgress.total) * 100}%` }}
+            />
+          </div>
+        </div>
+      )}
 
       {fetchError && (
         <p className="mt-3 rounded-lg bg-rose-50 px-3 py-2 text-xs text-rose-700">{fetchError}</p>
