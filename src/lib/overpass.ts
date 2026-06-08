@@ -31,14 +31,10 @@ const TOURISM_LABEL: Record<string, string> = {
   zoo:                  'Zoo',
   theme_park:           'Theme Park',
   viewpoint:            'Viewpoint',
-  artwork:              'Public Art',
 }
 const HISTORIC_LABEL: Record<string, string> = {
   castle:               'Castle',
   monument:             'Monument',
-  memorial:             'Memorial',
-  ruins:                'Ruins',
-  archaeological_site:  'Archaeological Site',
 }
 const LEISURE_LABEL: Record<string, string> = {
   park:                 'Park',
@@ -528,10 +524,10 @@ export async function fetchOSMAttractions(
 [out:json][timeout:90];
 ${areaQuery};
 (
-  node[tourism~"^(attraction|museum|gallery|aquarium|zoo|theme_park|viewpoint|artwork)$"]["name"](area.a);
-  way[tourism~"^(attraction|museum|gallery|aquarium|zoo|theme_park|viewpoint|artwork)$"]["name"](area.a);
-  node[historic~"^(castle|monument|memorial|ruins|archaeological_site)$"]["name"](area.a);
-  way[historic~"^(castle|monument|memorial|ruins|archaeological_site)$"]["name"](area.a);
+  node[tourism~"^(attraction|museum|gallery|aquarium|zoo|theme_park|viewpoint)$"]["name"](area.a);
+  way[tourism~"^(attraction|museum|gallery|aquarium|zoo|theme_park|viewpoint)$"]["name"](area.a);
+  node[historic~"^(castle|monument)$"]["name"](area.a);
+  way[historic~"^(castle|monument)$"]["name"](area.a);
   node[leisure~"^(park|marina|nature_reserve)$"]["name"](area.a);
   way[leisure~"^(park|marina|nature_reserve)$"]["name"](area.a);
   node[man_made~"^(pier|lighthouse|windmill)$"]["name"](area.a);
