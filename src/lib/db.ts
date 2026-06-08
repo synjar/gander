@@ -498,3 +498,84 @@ export async function saveMerchantStripeAccount(businessId: string, stripeAccoun
     )
   if (error) throw error
 }
+
+// --- Business profiles (owner-editable details + photos) --------------------
+
+export interface BusinessProfile {
+  businessId: string
+  name?: string
+  shortDescription?: string
+  description?: string
+  phone?: string
+  website?: string
+  address?: string
+  postcode?: string
+  heroImageUrl?: string
+  galleryUrls: string[]
+  amenities: string[]
+}
+
+export async function getBusinessProfile(businessId: string): Promise<BusinessProfile | null> {
+  if (!backendEnabled) return null
+  const { data } = await client()
+    .from('business_profiles')
+    .select('*')
+    .eq('business_id', businessId)
+    .maybeSingle()
+  if (!data) return null
+  return {
+    businessId: data.business_id as string,
+    name: (data.name as string) ?? undefined,
+    shortDescription: (data.short_description as string) ?? undefined,
+    description: (data.description as string) ?? undefined,
+    phone: (data.phone as string) ?? undefined,
+    website: (data.website as string) ?? undefined,
+    address: (data.address as string) ?? undefined,
+    postcode: (data.postcode as string) ?? undefined,
+    heroImageUrl: (data.hero_image_url as string) ?? undefined,
+    galleryUrls: (data.gallery_urls as string[]) ?? [],
+    amenities: (data.amenities as string[]) ?? [],
+  }
+}
+
+export async function saveBusinessProfile(
+  businessId: string,
+  profile: Partial<Omit<BusinessProfile, 'businessId'>>,
+): Promise<void> {
+  const { error } = await client()
+    .from('business_profiles')
+    .upsert(
+      {
+        business_id: businessId,
+        name: profile.name ?? null,
+        short_description: profile.shortDescription ?? null,
+        description: profile.description ?? null,
+        phone: profile.phone ?? null,
+        website: profile.website ?? null,
+        address: profile.address ?? null,
+        postcode: profile.postcode ?? null,
+        hero_image_url: profile.heroImageUrl ?? null,
+        gallery_urls: profile.galleryUrls ?? [],
+        amenities: profile.amenities ?? [],
+        updated_at: new Date().toISOString(),
+      },
+      { onConflict: 'business_id' },
+    )
+  if (error) throw error
+}
+
+/** Returns voucher stats for a business (avg spend, total revenue, count). */
+export async function getBusinessVoucherStats(businessId: string): Promise<{
+  count: number
+  avgSpend: number | null
+  totalRevenue: number
+}> {
+  const { data } = await client()
+    .from('vouchers')
+    .select('deal_price')
+    .eq('business_id', businessId)
+  if (!data || data.length === 0) return { count: 0, avgSpend: null, totalRevenue: 0 }
+  const prices = data.map((v) => Number(v.deal_price))
+  const total = prices.reduce((a, b) => a + b, 0)
+  return { count: prices.length, avgSpend: total / prices.length, totalRevenue: total }
+}

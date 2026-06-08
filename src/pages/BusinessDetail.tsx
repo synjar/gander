@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { Link, useParams } from 'react-router-dom'
 import {
   Award,
@@ -19,6 +19,7 @@ import { categoryMap } from '../data/categories'
 import { priceLevel, formatPrice, ratingLabel, discountPct } from '../lib/format'
 import { useStore } from '../store/StoreContext'
 import type { Business } from '../data/types'
+import * as db from '../lib/db'
 import SmartImage from '../components/SmartImage'
 import Stars from '../components/Stars'
 import BusinessCard from '../components/BusinessCard'
@@ -100,13 +101,37 @@ function ScoreBar({ label, value }: { label: string; value: number }) {
 export default function BusinessDetail() {
   const { slug } = useParams()
   const { statsFor, reviewsFor, dealsForBusinessId, liveBusinesses } = useStore()
-  const b = slug
+  const rawB = slug
     ? (businessBySlug(slug) ?? liveBusinesses.find((b) => b.slug === slug))
     : undefined
   const [reviewOpen, setReviewOpen] = useState(false)
   const [bookOpen, setBookOpen] = useState(false)
   const [orderOpen, setOrderOpen] = useState(false)
   const [toast, setToast] = useState('')
+  const [profile, setProfile] = useState<db.BusinessProfile | null>(null)
+
+  useEffect(() => {
+    if (rawB?.id) {
+      db.getBusinessProfile(rawB.id).then(setProfile).catch(() => setProfile(null))
+    }
+  }, [rawB?.id])
+
+  // Merge owner-editable profile on top of static/submission data
+  const b = rawB && profile
+    ? {
+        ...rawB,
+        name: profile.name ?? rawB.name,
+        shortDescription: profile.shortDescription ?? rawB.shortDescription,
+        description: profile.description ?? rawB.description,
+        phone: profile.phone ?? rawB.phone,
+        website: profile.website ?? rawB.website,
+        address: profile.address ?? rawB.address,
+        postcode: profile.postcode ?? rawB.postcode,
+        heroImage: profile.heroImageUrl ?? rawB.heroImage,
+        images: profile.galleryUrls.length > 0 ? profile.galleryUrls : rawB.images,
+        amenities: profile.amenities.length > 0 ? profile.amenities : rawB.amenities,
+      }
+    : rawB
 
   if (!b) {
     return (

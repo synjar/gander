@@ -264,3 +264,25 @@ alter table public.merchant_stripe_accounts enable row level security;
 drop policy if exists "Public access to merchant_stripe_accounts" on public.merchant_stripe_accounts;
 create policy "Public access to merchant_stripe_accounts"
   on public.merchant_stripe_accounts for all using (true) with check (true);
+
+-- Business profiles (owner-editable listing details + photos) ----------------
+create table if not exists public.business_profiles (
+  business_id       text primary key,
+  name              text,
+  short_description text,
+  description       text,
+  phone             text,
+  website           text,
+  address           text,
+  postcode          text,
+  hero_image_url    text,
+  gallery_urls      text[]  default '{}',
+  amenities         text[]  default '{}',
+  updated_at        timestamptz default now()
+);
+
+alter table public.business_profiles enable row level security;
+
+drop policy if exists "Public access to business_profiles" on public.business_profiles;
+create policy "Public access to business_profiles"
+  on public.business_profiles for all using (true) with check (true);

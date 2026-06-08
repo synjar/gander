@@ -28,6 +28,7 @@ import type { Business, Review } from '../data/types'
 import { discountPct, formatPrice } from '../lib/format'
 import * as db from '../lib/db'
 import type { StaffMember } from '../lib/db'
+import { uploadImage, storageEnabled } from '../lib/storage'
 import Avatar from '../components/Avatar'
 import Stars from '../components/Stars'
 import SmartImage from '../components/SmartImage'
@@ -237,6 +238,280 @@ function DealCreator({ business }: { business: Business }) {
           </p>
         )}
       </div>
+    </div>
+  )
+}
+
+// ---- Edit listing tab ------------------------------------------------------
+
+const COMMON_AMENITIES = [
+  'Free Wi-Fi', 'Outdoor seating', 'Private dining', 'Accessible', 'Dog friendly',
+  'Late night', 'Live music', 'Parking', 'Takeaway', 'BYO', 'Reservations',
+]
+
+function PhotoSlot({
+  src, label, onUpload, onRemove, uploading,
+}: {
+  src?: string; label: string; onUpload: (f: File) => void
+  onRemove?: () => void; uploading?: boolean
+}) {
+  return (
+    <div className="relative">
+      <label className="group block cursor-pointer overflow-hidden rounded-xl border-2 border-dashed border-stone-200 hover:border-brand-400">
+        <input type="file" accept="image/*" className="sr-only" onChange={(e) => { const f = e.target.files?.[0]; if (f) onUpload(f) }} />
+        {src ? (
+          <img src={src} alt={label} className="h-full w-full object-cover" style={{ minHeight: 80 }} />
+        ) : (
+          <div className="flex flex-col items-center justify-center gap-1 py-5 text-stone-400 group-hover:text-brand-500" style={{ minHeight: 80 }}>
+            {uploading ? <Loader2 size={20} className="animate-spin" /> : <Plus size={20} />}
+            <span className="text-xs font-medium">{uploading ? 'Uploading…' : label}</span>
+          </div>
+        )}
+      </label>
+      {src && onRemove && (
+        <button onClick={onRemove} className="absolute right-1 top-1 rounded-full bg-black/60 p-1 text-white hover:bg-black/80">
+          <X size={12} />
+        </button>
+      )}
+    </div>
+  )
+}
+
+function EditListingTab({ business }: { business: Business }) {
+  const { configured } = useAuth()
+  const [loading, setLoading] = useState(true)
+  const [saving, setSaving] = useState(false)
+  const [saved, setSaved] = useState(false)
+  const [error, setError] = useState('')
+  const [uploadingSlot, setUploadingSlot] = useState<string | null>(null)
+
+  // Form state
+  const [name, setName] = useState(business.name)
+  const [shortDesc, setShortDesc] = useState(business.shortDescription)
+  const [desc, setDesc] = useState(business.description)
+  const [phone, setPhone] = useState(business.phone ?? '')
+  const [website, setWebsite] = useState(business.website ?? '')
+  const [address, setAddress] = useState(business.address ?? '')
+  const [postcode, setPostcode] = useState(business.postcode ?? '')
+  const [heroUrl, setHeroUrl] = useState(business.heroImage ?? '')
+  const [gallery, setGallery] = useState<string[]>(business.images ?? [])
+  const [amenities, setAmenities] = useState<string[]>(business.amenities ?? [])
+
+  // Load saved profile
+  useEffect(() => {
+    if (!configured || !db.backendEnabled) { setLoading(false); return }
+    db.getBusinessProfile(business.id)
+      .then((p) => {
+        if (p) {
+          if (p.name) setName(p.name)
+          if (p.shortDescription) setShortDesc(p.shortDescription)
+          if (p.description) setDesc(p.description)
+          if (p.phone) setPhone(p.phone)
+          if (p.website) setWebsite(p.website)
+          if (p.address) setAddress(p.address)
+          if (p.postcode) setPostcode(p.postcode)
+          if (p.heroImageUrl) setHeroUrl(p.heroImageUrl)
+          if (p.galleryUrls.length) setGallery(p.galleryUrls)
+          if (p.amenities.length) setAmenities(p.amenities)
+        }
+      })
+      .catch(console.error)
+      .finally(() => setLoading(false))
+  }, [business.id, configured])
+
+  async function uploadPhoto(slot: string, file: File): Promise<string | null> {
+    if (!storageEnabled) return URL.createObjectURL(file)
+    setUploadingSlot(slot)
+    try {
+      return await uploadImage(file, `business/${business.id}`)
+    } catch (e) {
+      setError(e instanceof Error ? e.message : 'Upload failed')
+      return null
+    } finally {
+      setUploadingSlot(null)
+    }
+  }
+
+  async function handleSave() {
+    if (!configured || !db.backendEnabled) { setError('Connect Supabase to save changes.'); return }
+    setSaving(true); setError(''); setSaved(false)
+    try {
+      await db.saveBusinessProfile(business.id, {
+        name, shortDescription: shortDesc, description: desc,
+        phone, website, address, postcode,
+        heroImageUrl: heroUrl, galleryUrls: gallery, amenities,
+      })
+      setSaved(true)
+      setTimeout(() => setSaved(false), 3000)
+    } catch (e) {
+      setError(e instanceof Error ? e.message : 'Save failed')
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  function toggleAmenity(a: string) {
+    setAmenities((prev) => prev.includes(a) ? prev.filter((x) => x !== a) : [...prev, a])
+  }
+
+  if (loading) return (
+    <div className="flex justify-center py-16"><Loader2 size={24} className="animate-spin text-stone-400" /></div>
+  )
+
+  return (
+    <div className="mt-6 grid gap-6 lg:grid-cols-[1fr_22rem]">
+      {/* Left: photos + text */}
+      <div className="space-y-6">
+        {/* Photos */}
+        <section className="rounded-2xl border border-stone-200 bg-white p-5">
+          <h2 className="flex items-center gap-2 font-display text-lg font-semibold text-stone-900">
+            Photos
+          </h2>
+          <p className="mt-0.5 text-sm text-stone-500">
+            The first photo is your hero image — it appears at the top of your listing.
+            {!storageEnabled && <span className="ml-1 text-amber-600">Connect Supabase to enable uploads.</span>}
+          </p>
+          {/* Hero */}
+          <div className="mt-3">
+            <p className="mb-1.5 text-xs font-semibold uppercase tracking-wide text-stone-400">Hero image</p>
+            <div className="h-40 overflow-hidden rounded-xl">
+              <PhotoSlot
+                src={heroUrl || undefined}
+                label="Upload hero photo"
+                uploading={uploadingSlot === 'hero'}
+                onUpload={async (f) => { const u = await uploadPhoto('hero', f); if (u) setHeroUrl(u) }}
+                onRemove={() => setHeroUrl('')}
+              />
+            </div>
+          </div>
+          {/* Gallery */}
+          <div className="mt-4">
+            <p className="mb-1.5 text-xs font-semibold uppercase tracking-wide text-stone-400">Gallery (up to 8)</p>
+            <div className="grid grid-cols-4 gap-2">
+              {gallery.map((url, i) => (
+                <PhotoSlot
+                  key={url + i}
+                  src={url}
+                  label=""
+                  uploading={uploadingSlot === `gallery-${i}`}
+                  onUpload={async (f) => { const u = await uploadPhoto(`gallery-${i}`, f); if (u) setGallery((g) => g.map((x, j) => j === i ? u : x)) }}
+                  onRemove={() => setGallery((g) => g.filter((_, j) => j !== i))}
+                />
+              ))}
+              {gallery.length < 8 && (
+                <PhotoSlot
+                  label="Add photo"
+                  uploading={uploadingSlot === 'gallery-new'}
+                  onUpload={async (f) => { const u = await uploadPhoto('gallery-new', f); if (u) setGallery((g) => [...g, u]) }}
+                />
+              )}
+            </div>
+          </div>
+        </section>
+
+        {/* Details */}
+        <section className="rounded-2xl border border-stone-200 bg-white p-5">
+          <h2 className="font-display text-lg font-semibold text-stone-900">Listing details</h2>
+          <div className="mt-4 space-y-3">
+            <label className="block text-sm">
+              <span className="mb-1 block font-medium text-stone-700">Business name</span>
+              <input value={name} onChange={(e) => setName(e.target.value)}
+                className="w-full rounded-lg border border-stone-200 px-3 py-2 text-sm outline-none focus:border-brand-400" />
+            </label>
+            <label className="block text-sm">
+              <span className="mb-1 block font-medium text-stone-700">Tagline <span className="font-normal text-stone-400">(shown in cards)</span></span>
+              <input value={shortDesc} onChange={(e) => setShortDesc(e.target.value)} maxLength={120}
+                className="w-full rounded-lg border border-stone-200 px-3 py-2 text-sm outline-none focus:border-brand-400" />
+            </label>
+            <label className="block text-sm">
+              <span className="mb-1 block font-medium text-stone-700">Full description</span>
+              <textarea value={desc} onChange={(e) => setDesc(e.target.value)} rows={5}
+                className="w-full resize-none rounded-lg border border-stone-200 px-3 py-2 text-sm outline-none focus:border-brand-400" />
+            </label>
+            <div className="grid grid-cols-2 gap-3">
+              <label className="block text-sm">
+                <span className="mb-1 block font-medium text-stone-700">Phone</span>
+                <input type="tel" value={phone} onChange={(e) => setPhone(e.target.value)}
+                  className="w-full rounded-lg border border-stone-200 px-3 py-2 text-sm outline-none focus:border-brand-400" />
+              </label>
+              <label className="block text-sm">
+                <span className="mb-1 block font-medium text-stone-700">Website</span>
+                <input type="url" value={website} onChange={(e) => setWebsite(e.target.value)} placeholder="https://"
+                  className="w-full rounded-lg border border-stone-200 px-3 py-2 text-sm outline-none focus:border-brand-400" />
+              </label>
+            </div>
+            <div className="grid grid-cols-[1fr_8rem] gap-3">
+              <label className="block text-sm">
+                <span className="mb-1 block font-medium text-stone-700">Address</span>
+                <input value={address} onChange={(e) => setAddress(e.target.value)}
+                  className="w-full rounded-lg border border-stone-200 px-3 py-2 text-sm outline-none focus:border-brand-400" />
+              </label>
+              <label className="block text-sm">
+                <span className="mb-1 block font-medium text-stone-700">Postcode</span>
+                <input value={postcode} onChange={(e) => setPostcode(e.target.value)}
+                  className="w-full rounded-lg border border-stone-200 px-3 py-2 text-sm outline-none focus:border-brand-400" />
+              </label>
+            </div>
+          </div>
+        </section>
+      </div>
+
+      {/* Right: amenities + save */}
+      <aside className="space-y-4">
+        <section className="rounded-2xl border border-stone-200 bg-white p-4">
+          <h3 className="font-semibold text-stone-900">Amenities</h3>
+          <p className="mt-0.5 text-xs text-stone-500">Tick everything that applies.</p>
+          <div className="mt-3 flex flex-wrap gap-2">
+            {COMMON_AMENITIES.map((a) => (
+              <button
+                key={a}
+                onClick={() => toggleAmenity(a)}
+                className={clsx(
+                  'rounded-full border px-3 py-1 text-xs font-medium transition',
+                  amenities.includes(a)
+                    ? 'border-brand-300 bg-brand-50 text-brand-700'
+                    : 'border-stone-200 text-stone-600 hover:border-stone-300',
+                )}
+              >
+                {a}
+              </button>
+            ))}
+          </div>
+          {/* Custom amenity */}
+          <div className="mt-3 flex gap-2">
+            <input
+              placeholder="Add custom…"
+              className="min-w-0 flex-1 rounded-lg border border-stone-200 px-3 py-1.5 text-xs outline-none focus:border-brand-400"
+              onKeyDown={(e) => {
+                if (e.key === 'Enter') {
+                  const v = (e.target as HTMLInputElement).value.trim()
+                  if (v && !amenities.includes(v)) { setAmenities((p) => [...p, v]);(e.target as HTMLInputElement).value = '' }
+                }
+              }}
+            />
+            <span className="text-xs text-stone-400 self-center">↵ Enter</span>
+          </div>
+        </section>
+
+        <div className="rounded-2xl border border-stone-200 bg-white p-4">
+          {error && <p className="mb-3 text-sm text-rose-600">{error}</p>}
+          {saved && (
+            <p className="mb-3 flex items-center gap-1.5 text-sm text-emerald-600">
+              <Check size={14} /> Saved! Changes are live on your public page.
+            </p>
+          )}
+          <button
+            onClick={handleSave}
+            disabled={saving || !configured}
+            className="flex w-full items-center justify-center gap-2 rounded-full bg-brand-500 py-3 text-sm font-semibold text-white hover:bg-brand-600 disabled:opacity-40"
+          >
+            {saving ? <><Loader2 size={15} className="animate-spin" /> Saving…</> : 'Save changes'}
+          </button>
+          <p className="mt-2 text-center text-xs text-stone-400">
+            Changes appear immediately on your public listing.
+          </p>
+        </div>
+      </aside>
     </div>
   )
 }
@@ -507,6 +782,15 @@ export default function MerchantDashboard() {
   const saves = Math.round(stats.reviewCount * 0.9)
 
   const [showScanner, setShowScanner] = useState(false)
+  const [dashTab, setDashTab] = useState<'overview' | 'edit'>('overview')
+
+  // Avg spend from real voucher data
+  const [voucherStats, setVoucherStats] = useState<{ count: number; avgSpend: number | null; totalRevenue: number } | null>(null)
+  useEffect(() => {
+    if (db.backendEnabled) {
+      db.getBusinessVoucherStats(business.id).then(setVoucherStats).catch(console.error)
+    }
+  }, [business.id])
 
   return (
     <div className="mx-auto max-w-6xl px-4 py-6">
@@ -590,68 +874,99 @@ export default function MerchantDashboard() {
       </div>
 
       {/* Stats */}
-      <div className="mt-4 grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-5">
+      <div className="mt-4 grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-6">
         <StatCard icon={Star} label="Rating" value={stats.rating.toFixed(1)} hint="Top 10% locally" />
         <StatCard icon={MessageSquare} label="Reviews" value={stats.reviewCount.toLocaleString('en-GB')} />
         <StatCard icon={Eye} label="Profile views" value={views.toLocaleString('en-GB')} hint="+12% this week" />
         <StatCard icon={Heart} label="Saves" value={saves.toLocaleString('en-GB')} />
         <StatCard icon={CalendarCheck} label="Bookings" value={venueBookings} hint="via Gander" />
+        <StatCard
+          icon={Wallet}
+          label="Avg spend"
+          value={voucherStats?.avgSpend != null ? formatPrice(voucherStats.avgSpend) : '—'}
+          hint={voucherStats && voucherStats.count > 0 ? `${voucherStats.count} vouchers sold` : 'No vouchers yet'}
+        />
       </div>
 
-      <div className="mt-6 grid gap-6 lg:grid-cols-[1fr_22rem]">
-        {/* Reviews inbox */}
-        <section className="rounded-2xl border border-stone-200 bg-white p-5">
-          <h2 className="flex items-center gap-2 font-display text-lg font-semibold text-stone-900">
-            <MessageSquare size={18} className="text-brand-500" /> Reviews inbox
-          </h2>
-          <p className="mt-0.5 text-sm text-stone-500">
-            Respond to customers — your replies show publicly under each review.
-          </p>
-          <div className="mt-2">
-            {reviews.length === 0 ? (
-              <p className="py-8 text-center text-sm text-stone-500">No reviews yet.</p>
-            ) : (
-              reviews.map((r) => <ReviewResponder key={r.id} review={r} />)
+      {/* Tabs */}
+      <div className="mt-6 flex gap-1 border-b border-stone-200">
+        {(['overview', 'edit'] as const).map((t) => (
+          <button
+            key={t}
+            onClick={() => setDashTab(t)}
+            className={clsx(
+              'relative px-5 py-3 text-sm font-semibold capitalize transition',
+              dashTab === t ? 'text-brand-600' : 'text-stone-500 hover:text-stone-800',
             )}
-          </div>
-        </section>
+          >
+            {t === 'edit' ? 'Edit listing' : 'Overview'}
+            {dashTab === t && (
+              <span className="absolute inset-x-2 -bottom-px h-0.5 rounded-full bg-brand-500" />
+            )}
+          </button>
+        ))}
+      </div>
 
-        {/* Deals manager + staff */}
-        <aside className="space-y-4">
-          <DealCreator business={business} />
-          <StripeConnectPanel businessId={business.id} />
-          <StaffManager businessId={business.id} businessName={business.name} />
-          <div className="rounded-2xl border border-stone-200 bg-white p-4">
-            <h3 className="flex items-center gap-1.5 font-semibold text-stone-900">
-              <Tag size={16} className="text-brand-500" /> Live deals ({venueDeals.length})
-            </h3>
-            <div className="mt-3 space-y-2">
-              {venueDeals.length === 0 ? (
-                <p className="text-sm text-stone-500">No deals yet. Create one to attract customers.</p>
+      {dashTab === 'overview' && (
+        <div className="mt-6 grid gap-6 lg:grid-cols-[1fr_22rem]">
+          {/* Reviews inbox */}
+          <section className="rounded-2xl border border-stone-200 bg-white p-5">
+            <h2 className="flex items-center gap-2 font-display text-lg font-semibold text-stone-900">
+              <MessageSquare size={18} className="text-brand-500" /> Reviews inbox
+            </h2>
+            <p className="mt-0.5 text-sm text-stone-500">
+              Respond to customers — your replies show publicly under each review.
+            </p>
+            <div className="mt-2">
+              {reviews.length === 0 ? (
+                <p className="py-8 text-center text-sm text-stone-500">No reviews yet.</p>
               ) : (
-                venueDeals.map((d) => (
-                  <div
-                    key={d.id}
-                    className={clsx(
-                      'rounded-xl border p-3',
-                      merchantDeals.some((m) => m.id === d.id)
-                        ? 'border-brand-200 bg-brand-50/50'
-                        : 'border-stone-200',
-                    )}
-                  >
-                    <p className="text-sm font-semibold text-stone-900">{d.title}</p>
-                    <div className="mt-1 flex items-center gap-2 text-sm">
-                      <span className="font-bold text-brand-600">{formatPrice(d.dealPrice)}</span>
-                      <span className="text-stone-400 line-through">{formatPrice(d.originalPrice)}</span>
-                      <span className="text-xs text-stone-400">· {d.sold.toLocaleString('en-GB')} sold</span>
-                    </div>
-                  </div>
-                ))
+                reviews.map((r) => <ReviewResponder key={r.id} review={r} />)
               )}
             </div>
-          </div>
-        </aside>
-      </div>
+          </section>
+
+          {/* Deals manager + payouts + staff */}
+          <aside className="space-y-4">
+            <DealCreator business={business} />
+            <StripeConnectPanel businessId={business.id} />
+            <StaffManager businessId={business.id} businessName={business.name} />
+            <div className="rounded-2xl border border-stone-200 bg-white p-4">
+              <h3 className="flex items-center gap-1.5 font-semibold text-stone-900">
+                <Tag size={16} className="text-brand-500" /> Live deals ({venueDeals.length})
+              </h3>
+              <div className="mt-3 space-y-2">
+                {venueDeals.length === 0 ? (
+                  <p className="text-sm text-stone-500">No deals yet. Create one to attract customers.</p>
+                ) : (
+                  venueDeals.map((d) => (
+                    <div
+                      key={d.id}
+                      className={clsx(
+                        'rounded-xl border p-3',
+                        merchantDeals.some((m) => m.id === d.id)
+                          ? 'border-brand-200 bg-brand-50/50'
+                          : 'border-stone-200',
+                      )}
+                    >
+                      <p className="text-sm font-semibold text-stone-900">{d.title}</p>
+                      <div className="mt-1 flex items-center gap-2 text-sm">
+                        <span className="font-bold text-brand-600">{formatPrice(d.dealPrice)}</span>
+                        <span className="text-stone-400 line-through">{formatPrice(d.originalPrice)}</span>
+                        <span className="text-xs text-stone-400">· {d.sold.toLocaleString('en-GB')} sold</span>
+                      </div>
+                    </div>
+                  ))
+                )}
+              </div>
+            </div>
+          </aside>
+        </div>
+      )}
+
+      {dashTab === 'edit' && (
+        <EditListingTab business={business} />
+      )}
     </div>
   )
 }
