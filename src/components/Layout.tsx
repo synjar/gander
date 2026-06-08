@@ -10,7 +10,7 @@ export default function Layout() {
     <div className="flex min-h-screen flex-col">
       <Header />
       <ReviewNudgeBanner />
-      <main className="flex-1 pb-20 md:pb-0">
+      <main className="flex-1 pb-[calc(5rem+env(safe-area-inset-bottom))] md:pb-0">
         <Outlet />
       </main>
       <Footer />

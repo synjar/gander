@@ -1,0 +1,7 @@
+<?xml version='1.0' encoding='utf-8'?>
+<resources>
+    <string name="app_name">Gander</string>
+    <string name="title_activity_main">Gander</string>
+    <string name="package_name">social.gander.app</string>
+    <string name="custom_url_scheme">social.gander.app</string>
+</resources>
