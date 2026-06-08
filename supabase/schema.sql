@@ -386,6 +386,55 @@ drop policy if exists "Public access to referrals" on public.referrals;
 create policy "Public access to referrals"
   on public.referrals for all using (true) with check (true);
 
+-- Imported businesses (OpenStreetMap) ----------------------------------------
+-- Stub listings imported from OSM. Owners can claim them to unlock the full
+-- merchant dashboard, add photos, and respond to reviews.
+create table if not exists public.imported_businesses (
+  id            uuid primary key default gen_random_uuid(),
+  osm_id        text not null unique,        -- e.g. "node/123456"
+  name          text not null,
+  slug          text not null,
+  category      text not null,
+  cuisine       text,
+  neighbourhood text not null default '',
+  city          text not null,
+  city_id       text not null,
+  address       text not null default '',
+  postcode      text not null default '',
+  phone         text not null default '',
+  website       text not null default '',
+  lat           double precision,
+  lng           double precision,
+  hours         jsonb,
+  tags          jsonb,
+  bookable      boolean not null default false,
+  delivers      boolean not null default false,
+  price_level   int not null default 2,
+  status        text not null default 'active', -- active | removed
+  claimed       boolean not null default false,
+  claimed_by    uuid references auth.users on delete set null,
+  imported_at   timestamptz not null default now()
+);
+
+alter table public.imported_businesses enable row level security;
+
+-- Anyone can read active listings
+drop policy if exists "Imported businesses are public" on public.imported_businesses;
+create policy "Imported businesses are public"
+  on public.imported_businesses for select using (status = 'active');
+
+-- Authenticated users (admins / owners) can insert / update
+drop policy if exists "Authenticated users can import businesses" on public.imported_businesses;
+create policy "Authenticated users can import businesses"
+  on public.imported_businesses for insert
+  with check (auth.role() = 'authenticated');
+
+drop policy if exists "Owners can claim businesses" on public.imported_businesses;
+create policy "Owners can claim businesses"
+  on public.imported_businesses for update
+  using (auth.role() = 'authenticated')
+  with check (auth.role() = 'authenticated');
+
 -- XP: award_points RPC -------------------------------------------------------
 -- Atomically increments a user's points and updates their level.
 -- Level thresholds: 1=0, 2=100, 3=300, 4=700, 5=1500

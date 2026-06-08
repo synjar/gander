@@ -53,6 +53,11 @@ export default function BusinessCard({ business: b, className, showRank, distanc
             <Tag size={12} /> Deal
           </span>
         )}
+        {b.source === 'osm' && !b.claimed && (
+          <span className="absolute bottom-2 right-2 rounded-full bg-stone-700/80 px-2 py-0.5 text-[10px] font-semibold text-stone-200 backdrop-blur-sm">
+            Unclaimed
+          </span>
+        )}
       </div>
 
       <div className="flex flex-1 flex-col p-3.5">

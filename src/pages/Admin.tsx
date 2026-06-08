@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useState, useCallback } from 'react'
 import { Link } from 'react-router-dom'
 import {
   BarChart3,
@@ -6,8 +6,10 @@ import {
   Building2,
   CalendarCheck,
   Check,
+  Download,
   Eye,
   EyeOff,
+  Globe,
   Loader2,
   MessageSquare,
   PoundSterling,
@@ -21,6 +23,8 @@ import { businesses, businessesById } from '../data/businesses'
 import { cities } from '../data/cities'
 import { categories, categoryMap } from '../data/categories'
 import { useStore } from '../store/StoreContext'
+import { fetchOSMVenues, type OsmVenue } from '../lib/overpass'
+import * as db from '../lib/db'
 import { formatPrice, priceLevel } from '../lib/format'
 import Stars from '../components/Stars'
 import Avatar from '../components/Avatar'
@@ -79,6 +83,216 @@ function ChartCard({
     </div>
   )
 }
+
+// ─── OSM Import panel ─────────────────────────────────────────────────────────
+
+const OSM_CITIES = cities.filter((c) =>
+  ['west-sussex', 'london', 'manchester', 'birmingham'].includes(c.id),
+)
+
+function ImportPanel() {
+  const { importBusinesses } = useStore()
+
+  const [cityId, setCityId]               = useState('west-sussex')
+  const [fetchState, setFetchState]       = useState<'idle' | 'fetching' | 'done' | 'importing'>('idle')
+  const [fetchError, setFetchError]       = useState<string | null>(null)
+  const [venues, setVenues]               = useState<OsmVenue[]>([])
+  const [existingIds, setExistingIds]     = useState<Set<string>>(new Set())
+  const [selected, setSelected]           = useState<Set<string>>(new Set())
+  const [importResult, setImportResult]   = useState<{ imported: number; skipped: number } | null>(null)
+
+  const handleFetch = useCallback(async () => {
+    setFetchState('fetching')
+    setFetchError(null)
+    setVenues([])
+    setSelected(new Set())
+    setImportResult(null)
+    try {
+      const [{ venues: fetched, error }, existIds] = await Promise.all([
+        fetchOSMVenues(cityId, 500),
+        db.getImportedOsmIds(cityId),
+      ])
+      if (error) { setFetchError(error); setFetchState('idle'); return }
+      setVenues(fetched)
+      setExistingIds(existIds)
+      // Auto-select only new venues
+      const newIds = new Set(fetched.filter((v) => !existIds.has(v.osmId)).map((v) => v.osmId))
+      setSelected(newIds)
+      setFetchState('done')
+    } catch (e) {
+      setFetchError(e instanceof Error ? e.message : String(e))
+      setFetchState('idle')
+    }
+  }, [cityId])
+
+  const handleImport = useCallback(async () => {
+    const toImport = venues.filter((v) => selected.has(v.osmId))
+    if (toImport.length === 0) return
+    setFetchState('importing')
+    try {
+      const result = await importBusinesses(toImport)
+      setImportResult(result)
+      // Refresh existing IDs so UI reflects what's now in DB
+      const existIds = await db.getImportedOsmIds(cityId)
+      setExistingIds(existIds)
+      setSelected(new Set())
+    } catch (e) {
+      setFetchError(e instanceof Error ? e.message : String(e))
+    } finally {
+      setFetchState('done')
+    }
+  }, [venues, selected, importBusinesses, cityId])
+
+  const toggleAll = useCallback(() => {
+    const newOnes = venues.filter((v) => !existingIds.has(v.osmId)).map((v) => v.osmId)
+    if (selected.size === newOnes.length) {
+      setSelected(new Set())
+    } else {
+      setSelected(new Set(newOnes))
+    }
+  }, [venues, existingIds, selected])
+
+  const newCount   = venues.filter((v) => !existingIds.has(v.osmId)).length
+  const alreadyCount = venues.filter((v) => existingIds.has(v.osmId)).length
+
+  return (
+    <section className="mt-4 rounded-2xl border border-stone-200 bg-white p-5">
+      <h2 className="flex items-center gap-2 font-display text-lg font-semibold text-stone-900">
+        <Globe size={18} className="text-brand-500" /> OpenStreetMap import
+      </h2>
+      <p className="mt-0.5 text-xs text-stone-500">
+        Pull real venues from OpenStreetMap and add them as unclaimed stub listings.
+        Business owners can later claim their listing to unlock the merchant dashboard.
+      </p>
+
+      {/* Controls */}
+      <div className="mt-4 flex flex-wrap items-end gap-3">
+        <div>
+          <label className="mb-1 block text-xs font-medium text-stone-600">Area</label>
+          <select
+            value={cityId}
+            onChange={(e) => { setCityId(e.target.value); setVenues([]); setFetchState('idle') }}
+            className="rounded-xl border border-stone-200 px-3 py-2 text-sm outline-none focus:border-brand-400"
+          >
+            {OSM_CITIES.map((c) => (
+              <option key={c.id} value={c.id}>{c.name}</option>
+            ))}
+          </select>
+        </div>
+        <button
+          onClick={handleFetch}
+          disabled={fetchState === 'fetching' || fetchState === 'importing'}
+          className="flex items-center gap-2 rounded-xl bg-stone-900 px-4 py-2 text-sm font-semibold text-white hover:bg-stone-800 disabled:opacity-50"
+        >
+          {fetchState === 'fetching'
+            ? <><Loader2 size={15} className="animate-spin" /> Fetching…</>
+            : <><Globe size={15} /> Fetch from OpenStreetMap</>}
+        </button>
+
+        {(fetchState === 'done' || fetchState === 'importing') && selected.size > 0 && (
+          <button
+            onClick={handleImport}
+            disabled={fetchState === 'importing'}
+            className="flex items-center gap-2 rounded-xl bg-brand-500 px-4 py-2 text-sm font-semibold text-white hover:bg-brand-600 disabled:opacity-50"
+          >
+            {fetchState === 'importing'
+              ? <><Loader2 size={15} className="animate-spin" /> Importing…</>
+              : <><Download size={15} /> Import {selected.size} selected</>}
+          </button>
+        )}
+      </div>
+
+      {fetchError && (
+        <p className="mt-3 rounded-lg bg-rose-50 px-3 py-2 text-xs text-rose-700">{fetchError}</p>
+      )}
+
+      {importResult && (
+        <div className="mt-3 flex items-center gap-2 rounded-lg bg-emerald-50 px-3 py-2 text-xs font-medium text-emerald-700">
+          <Check size={14} />
+          Imported {importResult.imported} new venues
+          {importResult.skipped > 0 && `, skipped ${importResult.skipped} already present`}.
+        </div>
+      )}
+
+      {/* Preview table */}
+      {venues.length > 0 && (
+        <div className="mt-4">
+          <div className="flex items-center gap-3 text-xs text-stone-500">
+            <span>{venues.length} venues fetched</span>
+            <span className="text-emerald-600">{newCount} new</span>
+            {alreadyCount > 0 && <span className="text-stone-400">{alreadyCount} already imported</span>}
+          </div>
+          <div className="mt-2 max-h-96 overflow-y-auto rounded-xl border border-stone-200">
+            <table className="w-full text-sm">
+              <thead className="sticky top-0 bg-stone-50 text-left text-xs text-stone-500">
+                <tr>
+                  <th className="px-3 py-2">
+                    <input
+                      type="checkbox"
+                      checked={selected.size === newCount && newCount > 0}
+                      onChange={toggleAll}
+                      className="rounded"
+                    />
+                  </th>
+                  <th className="px-3 py-2 font-medium">Name</th>
+                  <th className="px-3 py-2 font-medium">Category</th>
+                  <th className="px-3 py-2 font-medium">Town</th>
+                  <th className="px-3 py-2 font-medium">Status</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-stone-100">
+                {venues.map((v) => {
+                  const already = existingIds.has(v.osmId)
+                  const isSelected = selected.has(v.osmId)
+                  return (
+                    <tr
+                      key={v.osmId}
+                      className={clsx(
+                        'transition',
+                        already ? 'opacity-40' : 'hover:bg-stone-50',
+                      )}
+                    >
+                      <td className="px-3 py-2">
+                        <input
+                          type="checkbox"
+                          checked={isSelected}
+                          disabled={already}
+                          onChange={() => {
+                            setSelected((prev) => {
+                              const next = new Set(prev)
+                              if (next.has(v.osmId)) next.delete(v.osmId)
+                              else next.add(v.osmId)
+                              return next
+                            })
+                          }}
+                          className="rounded"
+                        />
+                      </td>
+                      <td className="px-3 py-2 font-medium text-stone-900">{v.name}</td>
+                      <td className="px-3 py-2 capitalize text-stone-500">
+                        {categoryMap[v.category]?.label ?? v.category}
+                      </td>
+                      <td className="px-3 py-2 text-stone-500">{v.neighbourhood}</td>
+                      <td className="px-3 py-2">
+                        {already ? (
+                          <span className="rounded-full bg-stone-100 px-2 py-0.5 text-xs text-stone-400">Imported</span>
+                        ) : (
+                          <span className="rounded-full bg-emerald-50 px-2 py-0.5 text-xs text-emerald-600">New</span>
+                        )}
+                      </td>
+                    </tr>
+                  )
+                })}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      )}
+    </section>
+  )
+}
+
+// ─── Main Admin page ──────────────────────────────────────────────────────────
 
 export default function Admin() {
   const {
@@ -382,6 +596,9 @@ export default function Admin() {
           </div>
         )}
       </section>
+
+      {/* OSM Import */}
+      <ImportPanel />
     </div>
   )
 }

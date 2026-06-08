@@ -69,6 +69,12 @@ export interface Business {
   featured?: boolean
   /** Set on approved business submissions — the Supabase user id of the submitter. */
   ownerId?: string
+  /** 'osm' for OpenStreetMap-imported venues; undefined/absent = hand-curated seed */
+  source?: 'osm'
+  /** Whether an OSM-imported listing has been claimed by its owner */
+  claimed?: boolean
+  /** OSM element identifier e.g. "node/123456" */
+  osmId?: string
 }
 
 export interface Review {

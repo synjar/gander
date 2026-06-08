@@ -4,6 +4,7 @@ import { Helmet } from 'react-helmet-async'
 import {
   Award,
   Bike,
+  Building2,
   CalendarCheck,
   Check,
   ChevronRight,
@@ -108,9 +109,11 @@ function ScoreBar({ label, value }: { label: string; value: number }) {
 
 export default function BusinessDetail() {
   const { slug } = useParams()
-  const { statsFor, reviewsFor, dealsForBusinessId, liveBusinesses } = useStore()
+  const { statsFor, reviewsFor, dealsForBusinessId, liveBusinesses, importedBusinesses } = useStore()
   const rawB = slug
-    ? (businessBySlug(slug) ?? liveBusinesses.find((b) => b.slug === slug))
+    ? (businessBySlug(slug) ??
+       liveBusinesses.find((b) => b.slug === slug) ??
+       importedBusinesses.find((b) => b.slug === slug))
     : undefined
   const [reviewOpen, setReviewOpen] = useState(false)
   const [bookOpen, setBookOpen] = useState(false)
@@ -244,6 +247,26 @@ export default function BusinessDetail() {
         <ChevronRight size={12} />
         <span className="text-stone-600">{b.name}</span>
       </nav>
+
+      {/* Claim banner for unclaimed OSM listings */}
+      {b.source === 'osm' && !b.claimed && (
+        <div className="mb-4 flex items-start gap-3 rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3">
+          <Building2 size={18} className="mt-0.5 shrink-0 text-amber-600" />
+          <div className="flex-1">
+            <p className="text-sm font-semibold text-amber-900">Is this your business?</p>
+            <p className="text-xs text-amber-700">
+              This is a basic listing imported from OpenStreetMap. Claim it to add photos, deals,
+              respond to reviews, and access your merchant dashboard.
+            </p>
+          </div>
+          <Link
+            to="/merchant"
+            className="shrink-0 rounded-full bg-amber-500 px-3 py-1.5 text-xs font-semibold text-white hover:bg-amber-600"
+          >
+            Claim listing
+          </Link>
+        </div>
+      )}
 
       {/* Title block */}
       <div className="mb-4 flex flex-wrap items-start justify-between gap-3">

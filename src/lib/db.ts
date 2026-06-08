@@ -8,6 +8,7 @@
 
 import { supabase, isSupabaseConfigured } from './supabase'
 import type { Booking, Business, BusinessSubmission, CategoryId, Deal, Review, Voucher } from '../data/types'
+import type { OsmVenue } from './overpass'
 
 export const backendEnabled = isSupabaseConfigured
 
@@ -990,6 +991,122 @@ export async function getVoucherRevenueTrend(businessId: string): Promise<Monthl
     byMonth[key].count += 1
   }
   return Object.entries(byMonth).map(([month, v]) => ({ month, ...v }))
+}
+
+// --- Imported businesses (OSM) ----------------------------------------------
+
+/** Bulk-upsert OSM venues into imported_businesses, skipping any that already exist. */
+export async function importOSMVenues(venues: OsmVenue[]): Promise<{ imported: number; skipped: number }> {
+  if (!backendEnabled || venues.length === 0) return { imported: 0, skipped: 0 }
+
+  const rows = venues.map((v) => ({
+    osm_id:       v.osmId,
+    name:         v.name,
+    slug:         v.slug,
+    category:     v.category,
+    cuisine:      v.cuisine ?? null,
+    neighbourhood: v.neighbourhood,
+    city:         v.city,
+    city_id:      v.cityId,
+    address:      v.address,
+    postcode:     v.postcode,
+    phone:        v.phone,
+    website:      v.website,
+    lat:          v.lat,
+    lng:          v.lng,
+    hours:        v.hours,
+    tags:         v.tags,
+    bookable:     v.bookable,
+    delivers:     v.delivers,
+  }))
+
+  // upsert — on conflict (osm_id) do nothing
+  const { data, error } = await client()
+    .from('imported_businesses')
+    .upsert(rows, { onConflict: 'osm_id', ignoreDuplicates: true })
+    .select('id')
+
+  if (error) throw new Error(error.message)
+  const imported = data?.length ?? 0
+  return { imported, skipped: venues.length - imported }
+}
+
+/** Fetch all active imported businesses, optionally filtered by cityId. */
+export async function listImportedBusinesses(cityId?: string): Promise<Business[]> {
+  if (!backendEnabled) return []
+  let q = client()
+    .from('imported_businesses')
+    .select('*')
+    .eq('status', 'active')
+  if (cityId) q = q.eq('city_id', cityId)
+  const { data } = await q.order('name')
+  return (data ?? []).map(rowToBusiness)
+}
+
+function rowToBusiness(r: Record<string, unknown>): Business {
+  return {
+    id:               r.id as string,
+    osmId:            r.osm_id as string,
+    slug:             r.slug as string,
+    name:             r.name as string,
+    source:           'osm',
+    claimed:          Boolean(r.claimed),
+    ownerId:          r.claimed_by as string | undefined,
+    category:         r.category as Business['category'],
+    cuisine:          r.cuisine as string | undefined,
+    tags:             (r.tags as string[]) ?? [],
+    rating:           0,
+    reviewCount:      0,
+    priceLevel:       (r.price_level as 1|2|3|4) ?? 2,
+    neighbourhood:    r.neighbourhood as string,
+    city:             r.city as string,
+    cityId:           r.city_id as string,
+    address:          r.address as string,
+    postcode:         r.postcode as string ?? '',
+    phone:            r.phone as string ?? '',
+    website:          r.website as string ?? '',
+    heroImage:        '',
+    images:           [],
+    shortDescription: '',
+    description:      '',
+    hours:            (r.hours as Business['hours']) ?? [],
+    openNow:          false,
+    amenities:        [],
+    scores:           { food: 0, service: 0, ambience: 0, value: 0 },
+    lat:              r.lat as number,
+    lng:              r.lng as number,
+    bookable:         Boolean(r.bookable),
+    delivers:         Boolean(r.delivers),
+  }
+}
+
+/** Get OSM IDs that are already in imported_businesses (to detect dupes in preview). */
+export async function getImportedOsmIds(cityId: string): Promise<Set<string>> {
+  if (!backendEnabled) return new Set()
+  const { data } = await client()
+    .from('imported_businesses')
+    .select('osm_id')
+    .eq('city_id', cityId)
+  return new Set((data ?? []).map((r) => r.osm_id as string))
+}
+
+/** Mark an imported listing as claimed by a user. */
+export async function claimBusiness(businessId: string, userId: string): Promise<void> {
+  const { error } = await client()
+    .from('imported_businesses')
+    .update({ claimed: true, claimed_by: userId })
+    .eq('id', businessId)
+  if (error) throw new Error(error.message)
+}
+
+/** Returns the count of imported businesses for a city. */
+export async function countImportedBusinesses(cityId: string): Promise<number> {
+  if (!backendEnabled) return 0
+  const { count } = await client()
+    .from('imported_businesses')
+    .select('id', { count: 'exact', head: true })
+    .eq('city_id', cityId)
+  return count ?? 0
 }
 
 /** Returns business IDs ordered by review count in the last 30 days (for Trending section) */

@@ -66,8 +66,11 @@ function MapPanel({ results }: { results: Business[] }) {
 export default function Search() {
   const [params, setParams] = useSearchParams()
   const { city } = useCity()
-  const { hiddenBusinesses, liveBusinesses } = useStore()
-  const allBiz = useMemo(() => [...businesses, ...liveBusinesses], [liveBusinesses])
+  const { hiddenBusinesses, liveBusinesses, importedBusinesses } = useStore()
+  const allBiz = useMemo(
+    () => [...businesses, ...liveBusinesses, ...importedBusinesses],
+    [liveBusinesses, importedBusinesses],
+  )
   const q = params.get('q') ?? ''
   const category = params.get('category') ?? 'all'
   const neighbourhood = params.get('neighbourhood') ?? 'all'

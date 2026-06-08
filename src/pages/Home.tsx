@@ -182,9 +182,12 @@ function CommunityStrip() {
 
 export default function Home() {
   const { city } = useCity()
-  const { hiddenBusinesses, liveBusinesses } = useStore()
+  const { hiddenBusinesses, liveBusinesses, importedBusinesses } = useStore()
   const isLondon = city.id === 'london'
-  const allBiz = useMemo(() => [...businesses, ...liveBusinesses], [liveBusinesses])
+  const allBiz = useMemo(
+    () => [...businesses, ...liveBusinesses, ...importedBusinesses],
+    [liveBusinesses, importedBusinesses],
+  )
   const cityBiz = allBiz.filter(
     (b) => b.cityId === city.id && !hiddenBusinesses.includes(b.id),
   )

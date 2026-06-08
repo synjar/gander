@@ -141,6 +141,10 @@ interface StoreValue extends Persisted {
   rejectSubmission: (id: string, note?: string) => Promise<void>
   /** True when reads/writes are backed by Supabase for a signed-in user. */
   backendSynced: boolean
+  /** OSM-imported stub listings (not yet claimed by owners) */
+  importedBusinesses: Business[]
+  /** Bulk-import OSM venues; returns imported + skipped counts */
+  importBusinesses: (venues: import('../lib/overpass').OsmVenue[]) => Promise<{ imported: number; skipped: number }>
 }
 
 const StoreContext = createContext<StoreValue | null>(null)
@@ -183,6 +187,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
   const [hiddenReviews, setHiddenReviews] = useState<string[]>(initial.hiddenReviews)
   const [hiddenBusinesses, setHiddenBusinesses] = useState<string[]>(initial.hiddenBusinesses)
   const [liveBusinesses, setLiveBusinesses] = useState<Business[]>([])
+  const [importedBusinesses, setImportedBusinesses] = useState<Business[]>([])
   const [submissions, setSubmissions] = useState<BusinessSubmission[]>([])
 
   // Demo mode: persist everything to localStorage. (Backend mode persists per-row.)
@@ -225,18 +230,20 @@ export function StoreProvider({ children }: { children: ReactNode }) {
   // Public, globally-readable data (responses, merchant deals, all reviews).
   const reloadPublic = useCallback(async () => {
     if (!db.backendEnabled) return
-    const [resps, mdeals, revs, liveBiz, subs] = await Promise.all([
+    const [resps, mdeals, revs, liveBiz, subs, imported] = await Promise.all([
       db.listResponses(),
       db.listMerchantDeals(),
       db.listAllReviews(),
       db.listApprovedBusinesses(),
       db.listSubmissions(),
+      db.listImportedBusinesses(),
     ])
     setReviewResponses(resps)
     setMerchantDeals(mdeals)
     setBackendReviews(revs)
     setLiveBusinesses(liveBiz)
     setSubmissions(subs)
+    setImportedBusinesses(imported)
   }, [])
 
   const reloadUser = useCallback(async () => {
@@ -660,6 +667,13 @@ export function StoreProvider({ children }: { children: ReactNode }) {
     await reloadPublic()
   }, [reloadPublic])
 
+  const importBusinesses = useCallback(async (venues: import('../lib/overpass').OsmVenue[]) => {
+    const result = await db.importOSMVenues(venues)
+    // Reload so the new stubs appear in the app immediately
+    await reloadPublic()
+    return result
+  }, [reloadPublic])
+
   const value: StoreValue = {
     userReviews,
     favourites,
@@ -704,6 +718,8 @@ export function StoreProvider({ children }: { children: ReactNode }) {
     approveSubmission,
     rejectSubmission,
     backendSynced: Boolean(backendUserId),
+    importedBusinesses,
+    importBusinesses,
   }
 
   return <StoreContext.Provider value={value}>{children}</StoreContext.Provider>
