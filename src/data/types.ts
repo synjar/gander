@@ -60,6 +60,8 @@ export interface Business {
   popularDishes?: Dish[]
   rank?: number
   featured?: boolean
+  /** Set on approved business submissions — the Supabase user id of the submitter. */
+  ownerId?: string
 }
 
 export interface Review {
@@ -156,6 +158,7 @@ export interface Voucher {
 
 export interface BusinessSubmission {
   id: string
+  submitterId?: string
   submitterEmail: string
   name: string
   slug: string

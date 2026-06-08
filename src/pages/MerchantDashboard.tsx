@@ -394,8 +394,25 @@ export default function MerchantDashboard() {
     dealsForBusinessId,
     bookings,
     merchantDeals,
+    ownedBusinesses,
+    liveBusinesses,
   } = useStore()
-  const business = businessesById[managedBusinessId] ?? businesses[0]
+
+  // If the user has real owned businesses prefer those, otherwise show seed data
+  const manageableBusinesses = ownedBusinesses.length > 0 ? ownedBusinesses : businesses
+
+  // Auto-switch to the user's first owned business if we're still on a seed default
+  useEffect(() => {
+    if (ownedBusinesses.length > 0 && !ownedBusinesses.find((b) => b.id === managedBusinessId)) {
+      setManagedBusiness(ownedBusinesses[0].id)
+    }
+  }, [ownedBusinesses, managedBusinessId, setManagedBusiness])
+
+  // Look up in seed data first, then live businesses
+  const business =
+    businessesById[managedBusinessId] ??
+    liveBusinesses.find((b) => b.id === managedBusinessId) ??
+    (ownedBusinesses[0] ?? businesses[0])
   const stats = statsFor(business)
   const reviews = reviewsFor(business.id)
   const venueDeals = dealsForBusinessId(business.id)
@@ -457,8 +474,8 @@ export default function MerchantDashboard() {
         <div className="min-w-0 flex-1">
           <div className="flex items-center gap-2">
             <h1 className="font-display text-xl font-semibold text-stone-900">{business.name}</h1>
-            <span className="rounded-full bg-emerald-100 px-2 py-0.5 text-xs font-semibold text-emerald-700">
-              Claimed
+            <span className={`rounded-full px-2 py-0.5 text-xs font-semibold ${ownedBusinesses.length > 0 ? 'bg-emerald-100 text-emerald-700' : 'bg-stone-100 text-stone-500'}`}>
+              {ownedBusinesses.length > 0 ? 'Owned' : 'Demo'}
             </span>
           </div>
           <p className="text-sm text-stone-500">
@@ -466,18 +483,20 @@ export default function MerchantDashboard() {
           </p>
         </div>
         <div className="flex items-center gap-2">
-          <select
-            value={managedBusinessId}
-            onChange={(e) => setManagedBusiness(e.target.value)}
-            className="rounded-lg border border-stone-200 bg-white px-3 py-2 text-sm text-stone-700 outline-none focus:border-brand-400"
-            title="Switch venue (demo)"
-          >
-            {businesses.map((b) => (
-              <option key={b.id} value={b.id}>
-                {b.name}
-              </option>
-            ))}
-          </select>
+          {manageableBusinesses.length > 1 && (
+            <select
+              value={managedBusinessId}
+              onChange={(e) => setManagedBusiness(e.target.value)}
+              className="rounded-lg border border-stone-200 bg-white px-3 py-2 text-sm text-stone-700 outline-none focus:border-brand-400"
+              title="Switch venue"
+            >
+              {manageableBusinesses.map((b) => (
+                <option key={b.id} value={b.id}>
+                  {b.name}
+                </option>
+              ))}
+            </select>
+          )}
           <Link
             to={`/b/${business.slug}`}
             className="flex items-center gap-1.5 rounded-full border border-stone-200 px-3 py-2 text-sm font-semibold text-stone-700 hover:bg-stone-50"

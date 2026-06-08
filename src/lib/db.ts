@@ -279,6 +279,7 @@ export async function listSubmissions(status?: string): Promise<BusinessSubmissi
   if (error) throw error
   return (data ?? []).map((r) => ({
     id: r.id,
+    submitterId: r.submitter_id ?? undefined,
     submitterEmail: r.submitter_email,
     name: r.name,
     slug: r.slug,
@@ -322,6 +323,7 @@ function submissionToBusiness(r: BusinessSubmission): Business {
     tags: [],
     rating: 0,
     reviewCount: 0,
+    ownerId: r.submitterId,
     priceLevel: r.priceLevel,
     neighbourhood: r.neighbourhood,
     city: r.city,
@@ -353,6 +355,7 @@ export async function listApprovedBusinesses(): Promise<Business[]> {
   if (error) throw error
   return (data ?? []).map((r) => submissionToBusiness({
     id: r.id,
+    submitterId: r.submitter_id ?? undefined,
     submitterEmail: r.submitter_email,
     name: r.name,
     slug: r.slug,

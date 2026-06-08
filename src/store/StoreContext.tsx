@@ -128,6 +128,7 @@ interface StoreValue extends Persisted {
   isBusinessHidden: (id: string) => boolean
   toggleBusinessHidden: (id: string) => void
   liveBusinesses: Business[]
+  ownedBusinesses: Business[]
   submissions: BusinessSubmission[]
   approveSubmission: (id: string) => Promise<void>
   rejectSubmission: (id: string, note?: string) => Promise<void>
@@ -587,6 +588,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
     isBusinessHidden: (id) => hiddenBusinesses.includes(id),
     toggleBusinessHidden,
     liveBusinesses,
+    ownedBusinesses: liveBusinesses.filter((b) => backendUserId && b.ownerId === backendUserId),
     submissions,
     approveSubmission,
     rejectSubmission,
