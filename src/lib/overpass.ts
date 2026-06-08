@@ -396,16 +396,32 @@ const OVERPASS_MIRRORS = [
 async function overpassPost(query: string): Promise<{ elements: OsmElement[] }> {
   let lastErr: Error = new Error('No mirrors available')
   for (const url of OVERPASS_MIRRORS) {
+    // Each mirror gets its own AbortController so a timeout on one doesn't
+    // cancel the next attempt.
+    const controller = new AbortController()
+    const timer = window.setTimeout(() => controller.abort(), 130_000)
     try {
       const res = await fetch(url, {
         method: 'POST',
         body: `data=${encodeURIComponent(query)}`,
         headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+        signal: controller.signal,
       })
-      if (!res.ok) throw new Error(`Overpass returned HTTP ${res.status}`)
+      clearTimeout(timer)
+      if (!res.ok) {
+        // Try to surface Overpass's own error message (it sends XML/plain-text)
+        let body = ''
+        try { body = (await res.text()).slice(0, 300) } catch { /* ignore */ }
+        throw new Error(`Overpass HTTP ${res.status}${body ? ` — ${body}` : ''}`)
+      }
       return await res.json() as { elements: OsmElement[] }
     } catch (e) {
-      lastErr = e instanceof Error ? e : new Error(String(e))
+      clearTimeout(timer)
+      if (e instanceof DOMException && e.name === 'AbortError') {
+        lastErr = new Error('Overpass request timed out (>130 s) — try a smaller area')
+      } else {
+        lastErr = e instanceof Error ? e : new Error(String(e))
+      }
     }
   }
   throw lastErr
@@ -521,21 +537,16 @@ export async function fetchOSMAttractions(
   // Use node + way (not nwr — relations are expensive and rarely needed for UK attractions).
   // way outputs use `out center` to get a centroid lat/lon.
   //
-  // tourism=attraction and leisure=park are very broad tags — every city has thousands.
-  // We add a ["wikidata"] pre-filter so Overpass only returns elements notable enough to
-  // have a Wikidata entry (Hyde Park yes, unnamed pocket green no). This keeps the
-  // result set tight and avoids 504 timeouts on large areas like London.
+  // leisure=park is intentionally excluded — it matches thousands of pocket greens in
+  // cities and reliably causes timeouts. Notable parks are captured via tourism=attraction.
   const query = `
 [out:json][timeout:120];
 ${areaQuery};
 (
-  node[tourism=attraction]["wikidata"]["name"](area.a);
-  way[tourism=attraction]["wikidata"]["name"](area.a);
-  node[tourism~"^(museum|gallery|aquarium|zoo|theme_park|viewpoint)$"]["name"](area.a);
-  way[tourism~"^(museum|gallery|aquarium|zoo|theme_park|viewpoint)$"]["name"](area.a);
+  node[tourism~"^(attraction|museum|gallery|aquarium|zoo|theme_park|viewpoint)$"]["name"](area.a);
+  way[tourism~"^(attraction|museum|gallery|aquarium|zoo|theme_park|viewpoint)$"]["name"](area.a);
   node[historic~"^(castle|monument)$"]["name"](area.a);
   way[historic~"^(castle|monument)$"]["name"](area.a);
-  way[leisure=park]["wikidata"]["name"](area.a);
   node[leisure~"^(marina|nature_reserve)$"]["name"](area.a);
   way[leisure~"^(marina|nature_reserve)$"]["name"](area.a);
   node[man_made~"^(pier|lighthouse|windmill)$"]["name"](area.a);
