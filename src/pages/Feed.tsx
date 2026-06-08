@@ -31,10 +31,14 @@ function PostCard({ post }: { post: FeedPost }) {
   return (
     <article className="rounded-2xl bg-white p-4 card-shadow ring-1 ring-stone-100 sm:p-5">
       <div className="flex items-center gap-3">
-        <Avatar name={post.userName} src={post.userAvatar} size={44} />
+        <Link to={`/u/${post.userId}`} className="shrink-0">
+          <Avatar name={post.userName} src={post.userAvatar} size={44} className="hover:ring-2 hover:ring-brand-300 transition" />
+        </Link>
         <div className="min-w-0">
           <p className="text-sm text-stone-600">
-            <span className="font-semibold text-stone-900">{post.userName}</span>{' '}
+            <Link to={`/u/${post.userId}`} className="font-semibold text-stone-900 hover:text-brand-600">
+              {post.userName}
+            </Link>{' '}
             <LevelBadge level={post.userLevel} className="align-middle" />{' '}
             {actionText[post.type]}{' '}
             <Link
@@ -142,7 +146,15 @@ export default function Feed() {
     ? allPosts.filter((p) => followingIds.has(p.userId))
     : allPosts
 
-  const tags = ['#SundayRoast', '#BottomlessBrunch', '#DimSum', '#NaturalWine', '#SkinFade', '#RooftopBars']
+  // label is display text; query must match actual business tag strings in the seed data
+  const tags = [
+    { label: '#SundayRoast',      query: 'Sunday roast' },
+    { label: '#BottomlessBrunch', query: 'Bottomless brunch' },
+    { label: '#DimSum',           query: 'Dim sum' },
+    { label: '#DateNight',        query: 'Date night' },
+    { label: '#SkinFade',         query: 'Skin fade' },
+    { label: '#Rooftop',          query: 'Rooftop' },
+  ]
 
   return (
     <div className="mx-auto max-w-6xl px-4 py-6">
@@ -219,11 +231,11 @@ export default function Feed() {
               <div className="mt-3 flex flex-wrap gap-2">
                 {tags.map((t) => (
                   <Link
-                    key={t}
-                    to={`/search?q=${encodeURIComponent(t.replace('#', ''))}`}
+                    key={t.label}
+                    to={`/search?q=${encodeURIComponent(t.query)}`}
                     className="rounded-full bg-stone-100 px-3 py-1.5 text-xs font-medium text-stone-600 hover:bg-brand-50 hover:text-brand-600"
                   >
-                    {t}
+                    {t.label}
                   </Link>
                 ))}
               </div>

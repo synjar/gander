@@ -5,6 +5,7 @@ export const XP = {
   CHECKIN: 10,
   DEAL: 15,
   REFERRAL: 100,
+  HELPFUL: 5,   // awarded to the review author when someone marks their review helpful
 } as const
 
 export const LEVELS = [
@@ -43,6 +44,11 @@ export function getLevelProgress(points: number): {
     nextLevel: nextEntry.level,
     nextLevelName: nextEntry.name,
   }
+}
+
+/** Returns true if the string looks like a Supabase UUID (as opposed to a seed ID like "u1") */
+export function isUUID(s: string): boolean {
+  return /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(s)
 }
 
 /** Referral code is the first 8 hex chars of the user's UUID (deterministic, no extra storage) */

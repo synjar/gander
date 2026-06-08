@@ -20,7 +20,7 @@ import {
   sendDealReceipt,
   sendBusinessApproved,
 } from '../lib/email'
-import { XP, getLevel, getLevelName } from '../lib/xp'
+import { XP, getLevel, getLevelName, isUUID } from '../lib/xp'
 import { toast } from '../lib/toast'
 
 const LS_KEY = 'gander.state.v1'
@@ -558,8 +558,18 @@ export function StoreProvider({ children }: { children: ReactNode }) {
   )
 
   const toggleReviewLike = useCallback((id: string) => {
-    setLikedReviews((prev) => (prev.includes(id) ? prev.filter((x) => x !== id) : [id, ...prev]))
-  }, [])
+    setLikedReviews((prev) => {
+      const wasLiked = prev.includes(id)
+      if (!wasLiked) {
+        // Award 5 XP to the review author (only for real backend users, not seed IDs like "u1")
+        const review = allReviews.find((r) => r.id === id)
+        if (review && isUUID(review.authorId)) {
+          void db.awardPoints(review.authorId, XP.HELPFUL)
+        }
+      }
+      return wasLiked ? prev.filter((x) => x !== id) : [id, ...prev]
+    })
+  }, [allReviews])
 
   const togglePostLike = useCallback((id: string) => {
     setLikedPosts((prev) => (prev.includes(id) ? prev.filter((x) => x !== id) : [id, ...prev]))
