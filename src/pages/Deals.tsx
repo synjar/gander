@@ -1,5 +1,6 @@
 import { useMemo, useState } from 'react'
 import { Tag } from 'lucide-react'
+import { Helmet } from 'react-helmet-async'
 import clsx from 'clsx'
 import { useStore } from '../store/StoreContext'
 import { businessesById } from '../data/businesses'
@@ -34,6 +35,10 @@ export default function Deals() {
 
   return (
     <div className="mx-auto max-w-7xl px-4 py-6">
+      <Helmet>
+        <title>Deals &amp; Vouchers in {city.name} | Gander</title>
+        <meta name="description" content={`Save money on the best restaurants, bars and activities in ${city.name} with exclusive Gander deals and vouchers.`} />
+      </Helmet>
       <div className="overflow-hidden rounded-3xl bg-gradient-to-br from-brand-500 to-orange-600 px-6 py-10 text-white sm:px-10">
         <span className="inline-flex items-center gap-1.5 rounded-full bg-white/20 px-3 py-1 text-xs font-semibold">
           <Tag size={13} /> Limited-time offers

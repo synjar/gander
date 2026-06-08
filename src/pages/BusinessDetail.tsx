@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react'
 import { Link, useParams } from 'react-router-dom'
+import { Helmet } from 'react-helmet-async'
 import {
   Award,
   Bike,
@@ -29,6 +30,7 @@ import FavouriteButton from '../components/FavouriteButton'
 import ReviewModal from '../components/ReviewModal'
 import BookingModal from '../components/BookingModal'
 import OrderModal from '../components/OrderModal'
+import Lightbox from '../components/Lightbox'
 
 function bookingConfig(b: Business): { label: string; mode: 'table' | 'class' | 'treatment' } {
   switch (b.category) {
@@ -45,7 +47,7 @@ function bookingConfig(b: Business): { label: string; mode: 'table' | 'class' | 
   }
 }
 
-function Gallery({ b }: { b: Business }) {
+function Gallery({ b, onOpen }: { b: Business; onOpen: (i: number) => void }) {
   const emoji = categoryMap[b.category].emoji
   const imgs = [b.heroImage, ...b.images].slice(0, 5)
   return (
@@ -53,31 +55,35 @@ function Gallery({ b }: { b: Business }) {
       {/* Mobile: scroller */}
       <div className="-mx-4 flex gap-2 overflow-x-auto px-4 pb-1 no-scrollbar md:hidden">
         {imgs.map((src, i) => (
-          <SmartImage
-            key={i}
-            src={src}
-            seedFallback={`${b.id}-${i}`}
-            emoji={emoji}
-            className="h-56 w-72 shrink-0 rounded-2xl object-cover"
-          />
+          <button key={i} onClick={() => onOpen(i)} className="shrink-0 cursor-zoom-in focus:outline-none">
+            <SmartImage
+              src={src}
+              seedFallback={`${b.id}-${i}`}
+              emoji={emoji}
+              className="h-56 w-72 rounded-2xl object-cover"
+            />
+          </button>
         ))}
       </div>
       {/* Desktop: mosaic */}
       <div className="hidden h-96 grid-cols-4 grid-rows-2 gap-2 overflow-hidden rounded-3xl md:grid">
-        <SmartImage
-          src={imgs[0]}
-          seedFallback={`${b.id}-0`}
-          emoji={emoji}
-          className="col-span-2 row-span-2 h-full w-full object-cover"
-        />
-        {imgs.slice(1, 5).map((src, i) => (
+        <button onClick={() => onOpen(0)} className="col-span-2 row-span-2 cursor-zoom-in overflow-hidden focus:outline-none">
           <SmartImage
-            key={i}
-            src={src}
-            seedFallback={`${b.id}-${i + 1}`}
+            src={imgs[0]}
+            seedFallback={`${b.id}-0`}
             emoji={emoji}
-            className="h-full w-full object-cover"
+            className="h-full w-full object-cover transition hover:scale-105"
           />
+        </button>
+        {imgs.slice(1, 5).map((src, i) => (
+          <button key={i} onClick={() => onOpen(i + 1)} className="cursor-zoom-in overflow-hidden focus:outline-none">
+            <SmartImage
+              src={src}
+              seedFallback={`${b.id}-${i + 1}`}
+              emoji={emoji}
+              className="h-full w-full object-cover transition hover:scale-105"
+            />
+          </button>
         ))}
       </div>
     </>
@@ -109,6 +115,7 @@ export default function BusinessDetail() {
   const [orderOpen, setOrderOpen] = useState(false)
   const [toast, setToast] = useState('')
   const [profile, setProfile] = useState<db.BusinessProfile | null>(null)
+  const [lightboxIndex, setLightboxIndex] = useState<number | null>(null)
 
   useEffect(() => {
     if (rawB?.id) {
@@ -204,8 +211,25 @@ export default function BusinessDetail() {
     }
   }
 
+  const galleryImages = [b.heroImage, ...b.images].slice(0, 5).filter(Boolean)
+  const metaDesc = b.shortDescription || b.description.slice(0, 160)
+
   return (
     <div className="mx-auto max-w-7xl px-4 py-5">
+      <Helmet>
+        <title>{b.name} — {categoryMap[b.category].label} in {b.neighbourhood} | Gander</title>
+        <meta name="description" content={metaDesc} />
+        <meta property="og:title" content={`${b.name} — ${b.neighbourhood}`} />
+        <meta property="og:description" content={metaDesc} />
+        <meta property="og:image" content={b.heroImage} />
+        <meta property="og:url" content={typeof window !== 'undefined' ? window.location.href : ''} />
+        <meta property="og:type" content="restaurant" />
+        <meta name="twitter:card" content="summary_large_image" />
+        <meta name="twitter:title" content={`${b.name} — ${b.neighbourhood}`} />
+        <meta name="twitter:description" content={metaDesc} />
+        <meta name="twitter:image" content={b.heroImage} />
+      </Helmet>
+
       {/* Breadcrumb */}
       <nav className="mb-3 flex items-center gap-1 text-xs text-stone-400">
         <Link to="/" className="hover:text-stone-600">
@@ -271,7 +295,7 @@ export default function BusinessDetail() {
         </div>
       </div>
 
-      <Gallery b={b} />
+      <Gallery b={b} onOpen={(i) => setLightboxIndex(i)} />
 
       {/* Action bar */}
       <div className="mt-4 flex flex-wrap items-center gap-2.5">
@@ -549,6 +573,16 @@ export default function BusinessDetail() {
         <div className="fixed bottom-24 left-1/2 z-50 -translate-x-1/2 rounded-full bg-stone-900 px-4 py-2 text-sm font-medium text-white shadow-lg md:bottom-8">
           {toast}
         </div>
+      )}
+
+      {/* Photo lightbox */}
+      {lightboxIndex !== null && galleryImages.length > 0 && (
+        <Lightbox
+          images={galleryImages}
+          index={Math.min(lightboxIndex, galleryImages.length - 1)}
+          onClose={() => setLightboxIndex(null)}
+          onChange={setLightboxIndex}
+        />
       )}
     </div>
   )

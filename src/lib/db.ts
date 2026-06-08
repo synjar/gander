@@ -573,6 +573,125 @@ export async function saveBusinessProfile(
   if (error) throw error
 }
 
+// --- Merchant: read bookings for their business ----------------------------
+
+export interface BusinessBooking {
+  id: string
+  userId: string
+  customerName: string
+  customerEmail?: string
+  businessId: string
+  businessName: string
+  date: string
+  time: string
+  partySize: number
+  occasion?: string
+  status: 'confirmed' | 'cancelled' | 'pending'
+  createdAt: number
+}
+
+export async function listBusinessBookings(businessId: string): Promise<BusinessBooking[]> {
+  const { data, error } = await client()
+    .from('bookings')
+    .select('*, customer:profiles(name)')
+    .eq('business_id', businessId)
+    .order('date', { ascending: true })
+    .order('time', { ascending: true })
+  if (error) throw error
+  return (data ?? []).map((r) => ({
+    id: r.id,
+    userId: r.user_id,
+    customerName: (r.customer as { name?: string } | null)?.name ?? 'Guest',
+    businessId: r.business_id,
+    businessName: r.business_name,
+    date: r.date,
+    time: r.time,
+    partySize: r.party_size,
+    occasion: r.occasion ?? undefined,
+    status: r.status as 'confirmed' | 'cancelled' | 'pending',
+    createdAt: new Date(r.created_at).getTime(),
+  }))
+}
+
+export async function updateBookingStatus(
+  id: string,
+  status: 'confirmed' | 'cancelled' | 'pending',
+): Promise<void> {
+  const { error } = await client().from('bookings').update({ status }).eq('id', id)
+  if (error) throw error
+}
+
+// --- Notifications ----------------------------------------------------------
+
+export interface Notification {
+  id: string
+  userId: string
+  type: string
+  title: string
+  body?: string
+  link?: string
+  read: boolean
+  createdAt: number
+}
+
+export async function listNotifications(userId: string): Promise<Notification[]> {
+  if (!backendEnabled) return []
+  const { data, error } = await client()
+    .from('notifications')
+    .select('*')
+    .eq('user_id', userId)
+    .order('created_at', { ascending: false })
+    .limit(30)
+  if (error) throw error
+  return (data ?? []).map((r) => ({
+    id: r.id,
+    userId: r.user_id,
+    type: r.type,
+    title: r.title,
+    body: r.body ?? undefined,
+    link: r.link ?? undefined,
+    read: r.read,
+    createdAt: new Date(r.created_at).getTime(),
+  }))
+}
+
+export async function createNotification(
+  userId: string,
+  notif: Pick<Notification, 'type' | 'title' | 'body' | 'link'>,
+): Promise<void> {
+  if (!backendEnabled) return
+  const { error } = await client().from('notifications').insert({
+    user_id: userId,
+    type: notif.type,
+    title: notif.title,
+    body: notif.body ?? null,
+    link: notif.link ?? null,
+  })
+  if (error) console.warn('[gander] notification insert failed:', error)
+}
+
+export async function markNotificationsRead(userId: string): Promise<void> {
+  if (!backendEnabled) return
+  await client().from('notifications').update({ read: true }).eq('user_id', userId).eq('read', false)
+}
+
+/** Looks up the owner (submitter_id) of an owned business and creates a notification for them. */
+export async function notifyBusinessOwner(
+  businessId: string,
+  notif: Pick<Notification, 'type' | 'title' | 'body' | 'link'>,
+): Promise<void> {
+  if (!backendEnabled) return
+  const { data } = await client()
+    .from('business_submissions')
+    .select('submitter_id')
+    .eq('id', businessId)
+    .eq('status', 'approved')
+    .maybeSingle()
+  const ownerId = data?.submitter_id as string | null
+  if (!ownerId) return
+  await createNotification(ownerId, notif)
+}
+
 /** Returns voucher stats for a business (avg spend, total revenue, count). */
 export async function getBusinessVoucherStats(businessId: string): Promise<{
   count: number

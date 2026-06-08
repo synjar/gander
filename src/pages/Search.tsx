@@ -1,5 +1,6 @@
 import { useMemo, useState } from 'react'
 import { useSearchParams } from 'react-router-dom'
+import { Helmet } from 'react-helmet-async'
 import { MapPin, SlidersHorizontal, X } from 'lucide-react'
 import clsx from 'clsx'
 import { businesses } from '../data/businesses'
@@ -128,6 +129,10 @@ export default function Search() {
 
   return (
     <div className="mx-auto max-w-7xl px-4 py-6">
+      <Helmet>
+        <title>{q ? `"${q}" — Search` : heading} | Gander</title>
+        <meta name="description" content={`Find the best ${q || 'places'} in ${city.name} on Gander — real reviews from real locals.`} />
+      </Helmet>
       <div className="flex flex-wrap items-end justify-between gap-3">
         <div>
           <h1 className="font-display text-2xl font-semibold text-stone-900 sm:text-3xl">

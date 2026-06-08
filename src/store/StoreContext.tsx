@@ -15,6 +15,11 @@ import { img } from '../lib/img'
 import { useAuth } from '../auth/AuthContext'
 import { supabase } from '../lib/supabase'
 import * as db from '../lib/db'
+import {
+  sendBookingConfirmation,
+  sendDealReceipt,
+  sendBusinessApproved,
+} from '../lib/email'
 
 const LS_KEY = 'gander.state.v1'
 
@@ -384,6 +389,14 @@ export function StoreProvider({ children }: { children: ReactNode }) {
           })
             .then(reloadPublic)
             .catch(logError('addReview'))
+
+          // Notify merchant of new review
+          void db.notifyBusinessOwner(input.businessId, {
+            type: 'review_new',
+            title: `New ${input.rating}★ review`,
+            body: input.body.slice(0, 100),
+            link: '/business/dashboard',
+          })
         }
       } else {
         setUserReviews((prev) => [r, ...prev])
@@ -417,10 +430,31 @@ export function StoreProvider({ children }: { children: ReactNode }) {
         })
           .then(reloadUser)
           .catch(logError('addBooking'))
+
+        // Email confirmation to customer
+        if (session?.user.email) {
+          void sendBookingConfirmation({
+            to: session.user.email,
+            name: backendUser.name,
+            businessName: input.businessName,
+            date: input.date,
+            time: input.time,
+            partySize: input.partySize,
+            occasion: input.occasion,
+          })
+        }
+
+        // In-app notification to merchant + email alert
+        void db.notifyBusinessOwner(input.businessId, {
+          type: 'booking_new',
+          title: `New booking at ${input.businessName}`,
+          body: `${backendUser.name} · ${input.partySize} people · ${input.date} at ${input.time}`,
+          link: '/business/dashboard',
+        })
       }
       return b
     },
-    [backendUserId, reloadUser],
+    [backendUserId, backendUser, session, reloadUser],
   )
 
   const cancelBooking = useCallback(
@@ -456,10 +490,30 @@ export function StoreProvider({ children }: { children: ReactNode }) {
           code: v.code,
           redeemed: false,
         }).catch(logError('buyVoucher'))
+
+        // Email receipt to customer
+        if (session?.user.email) {
+          void sendDealReceipt({
+            to: session.user.email,
+            name: backendUser.name,
+            businessName,
+            dealTitle: deal.title,
+            price: `£${deal.dealPrice.toFixed(2)}`,
+            code: v.code,
+          })
+        }
+
+        // Notify merchant of sale
+        void db.notifyBusinessOwner(deal.businessId, {
+          type: 'deal_sold',
+          title: `Deal sold at ${businessName}`,
+          body: `${deal.title} · £${deal.dealPrice.toFixed(2)}`,
+          link: '/business/dashboard',
+        })
       }
       return v
     },
-    [backendUserId],
+    [backendUserId, backendUser, session],
   )
 
   const toggleReviewLike = useCallback((id: string) => {
@@ -540,9 +594,15 @@ export function StoreProvider({ children }: { children: ReactNode }) {
   }, [])
 
   const approveSubmission = useCallback(async (id: string) => {
+    // Find the submission before reloading so we can send the email
+    const sub = submissions.find((s) => s.id === id)
     await db.updateSubmissionStatus(id, 'approved')
     await reloadPublic()
-  }, [reloadPublic])
+    // Email the submitter
+    if (sub?.submitterEmail && sub.name) {
+      void sendBusinessApproved({ to: sub.submitterEmail, businessName: sub.name })
+    }
+  }, [reloadPublic, submissions])
 
   const rejectSubmission = useCallback(async (id: string, note?: string) => {
     await db.updateSubmissionStatus(id, 'rejected', note)

@@ -3,6 +3,7 @@ import { Link, NavLink, useNavigate } from 'react-router-dom'
 import { ChevronDown, MapPin, PenLine, Search } from 'lucide-react'
 import clsx from 'clsx'
 import Avatar from './Avatar'
+import NotificationBell from './NotificationBell'
 import { useAuth } from '../auth/AuthContext'
 import AuthModal from './AuthModal'
 import { APP } from '../data'
@@ -127,6 +128,7 @@ export default function Header() {
             Sign in
           </button>
         )}
+        <NotificationBell />
         <Link
           to="/me"
           className={clsx(

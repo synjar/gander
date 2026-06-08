@@ -19,6 +19,7 @@ import {
   Users,
   Wallet,
   X,
+  XCircle,
 } from 'lucide-react'
 import clsx from 'clsx'
 import { businesses, businessesById } from '../data/businesses'
@@ -27,7 +28,7 @@ import { useAuth } from '../auth/AuthContext'
 import type { Business, Review } from '../data/types'
 import { discountPct, formatPrice } from '../lib/format'
 import * as db from '../lib/db'
-import type { StaffMember, DayHours } from '../lib/db'
+import type { StaffMember, DayHours, BusinessBooking } from '../lib/db'
 import { uploadImage, storageEnabled } from '../lib/storage'
 import Avatar from '../components/Avatar'
 import Stars from '../components/Stars'
@@ -238,6 +239,157 @@ function DealCreator({ business }: { business: Business }) {
           </p>
         )}
       </div>
+    </div>
+  )
+}
+
+// ---- Bookings tab ----------------------------------------------------------
+
+function BookingsTab({ business }: { business: Business }) {
+  const { configured } = useAuth()
+  const [bookings, setBookings] = useState<BusinessBooking[]>([])
+  const [loading, setLoading] = useState(true)
+  const [busyId, setBusyId] = useState<string | null>(null)
+  const [error, setError] = useState('')
+
+  const load = useCallback(() => {
+    if (!configured || !db.backendEnabled) { setLoading(false); return }
+    setLoading(true)
+    db.listBusinessBookings(business.id)
+      .then(setBookings)
+      .catch((e: unknown) => setError(e instanceof Error ? e.message : String(e)))
+      .finally(() => setLoading(false))
+  }, [business.id, configured])
+
+  useEffect(() => { load() }, [load])
+
+  async function handleStatus(id: string, status: 'confirmed' | 'cancelled') {
+    setBusyId(id)
+    try {
+      await db.updateBookingStatus(id, status)
+      setBookings((prev) => prev.map((b) => (b.id === id ? { ...b, status } : b)))
+    } catch (e) {
+      setError(e instanceof Error ? e.message : String(e))
+    } finally {
+      setBusyId(null)
+    }
+  }
+
+  const today = new Date().toISOString().slice(0, 10)
+  const upcoming = bookings.filter((b) => b.date >= today && b.status !== 'cancelled')
+  const past = bookings.filter((b) => b.date < today || b.status === 'cancelled')
+
+  if (!configured || !db.backendEnabled) {
+    return (
+      <div className="mt-6 rounded-2xl border border-stone-200 bg-white p-8 text-center text-sm text-stone-500">
+        Connect Supabase to view bookings.
+      </div>
+    )
+  }
+
+  if (loading) {
+    return (
+      <div className="mt-6 flex justify-center py-16">
+        <Loader2 size={24} className="animate-spin text-stone-400" />
+      </div>
+    )
+  }
+
+  function BookingRow({ b }: { b: BusinessBooking }) {
+    const isPast = b.date < today
+    const isCancelled = b.status === 'cancelled'
+    return (
+      <div className={clsx(
+        'flex flex-wrap items-center gap-3 rounded-xl border px-4 py-3',
+        isCancelled ? 'border-stone-100 bg-stone-50 opacity-60' : 'border-stone-200 bg-white',
+      )}>
+        <div className="min-w-0 flex-1">
+          <div className="flex flex-wrap items-center gap-2">
+            <span className="font-semibold text-stone-900">{b.customerName}</span>
+            <span className={clsx(
+              'rounded-full px-2 py-0.5 text-xs font-semibold',
+              b.status === 'confirmed' ? 'bg-emerald-100 text-emerald-700'
+              : b.status === 'cancelled' ? 'bg-stone-100 text-stone-500'
+              : 'bg-amber-100 text-amber-700',
+            )}>
+              {b.status}
+            </span>
+          </div>
+          <p className="mt-0.5 text-sm text-stone-500">
+            {b.date} at {b.time} · {b.partySize} {b.partySize === 1 ? 'person' : 'people'}
+            {b.occasion ? ` · ${b.occasion}` : ''}
+          </p>
+        </div>
+        {!isPast && !isCancelled && (
+          <div className="flex items-center gap-2">
+            {b.status !== 'confirmed' && (
+              <button
+                disabled={busyId === b.id}
+                onClick={() => handleStatus(b.id, 'confirmed')}
+                className="flex items-center gap-1 rounded-full bg-emerald-500 px-3 py-1.5 text-xs font-semibold text-white hover:bg-emerald-600 disabled:opacity-40"
+              >
+                {busyId === b.id ? <Loader2 size={11} className="animate-spin" /> : <Check size={11} />}
+                Confirm
+              </button>
+            )}
+            <button
+              disabled={busyId === b.id}
+              onClick={() => handleStatus(b.id, 'cancelled')}
+              className="flex items-center gap-1 rounded-full border border-rose-200 px-3 py-1.5 text-xs font-semibold text-rose-600 hover:bg-rose-50 disabled:opacity-40"
+            >
+              {busyId === b.id ? <Loader2 size={11} className="animate-spin" /> : <XCircle size={11} />}
+              Cancel
+            </button>
+          </div>
+        )}
+      </div>
+    )
+  }
+
+  return (
+    <div className="mt-6 space-y-6">
+      {error && (
+        <p className="rounded-xl bg-rose-50 px-4 py-3 text-sm text-rose-600">{error}</p>
+      )}
+
+      {/* Upcoming */}
+      <section>
+        <h2 className="flex items-center gap-2 font-display text-lg font-semibold text-stone-900">
+          <CalendarCheck size={18} className="text-brand-500" />
+          Upcoming
+          {upcoming.length > 0 && (
+            <span className="rounded-full bg-brand-100 px-2 py-0.5 text-xs font-semibold text-brand-700">
+              {upcoming.length}
+            </span>
+          )}
+        </h2>
+        <div className="mt-3 space-y-2">
+          {upcoming.length === 0 ? (
+            <p className="rounded-2xl border border-dashed border-stone-200 p-8 text-center text-sm text-stone-400">
+              No upcoming bookings. They'll appear here as customers book via Gander.
+            </p>
+          ) : (
+            upcoming.map((b) => <BookingRow key={b.id} b={b} />)
+          )}
+        </div>
+      </section>
+
+      {/* Past / cancelled */}
+      {past.length > 0 && (
+        <section>
+          <h2 className="font-display text-base font-semibold text-stone-500">
+            Past &amp; cancelled
+          </h2>
+          <div className="mt-3 space-y-2">
+            {past.slice(0, 10).map((b) => <BookingRow key={b.id} b={b} />)}
+            {past.length > 10 && (
+              <p className="text-center text-xs text-stone-400">
+                Showing 10 of {past.length} past bookings
+              </p>
+            )}
+          </div>
+        </section>
+      )}
     </div>
   )
 }
@@ -854,7 +1006,7 @@ export default function MerchantDashboard() {
   const saves = Math.round(stats.reviewCount * 0.9)
 
   const [showScanner, setShowScanner] = useState(false)
-  const [dashTab, setDashTab] = useState<'overview' | 'edit'>('overview')
+  const [dashTab, setDashTab] = useState<'overview' | 'bookings' | 'edit'>('overview')
 
   // Avg spend from real voucher data
   const [voucherStats, setVoucherStats] = useState<{ count: number; avgSpend: number | null; totalRevenue: number } | null>(null)
@@ -962,16 +1114,21 @@ export default function MerchantDashboard() {
 
       {/* Tabs */}
       <div className="mt-6 flex gap-1 border-b border-stone-200">
-        {(['overview', 'edit'] as const).map((t) => (
+        {(['overview', 'bookings', 'edit'] as const).map((t) => (
           <button
             key={t}
             onClick={() => setDashTab(t)}
             className={clsx(
-              'relative px-5 py-3 text-sm font-semibold capitalize transition',
+              'relative flex items-center gap-1.5 px-4 py-3 text-sm font-semibold capitalize transition',
               dashTab === t ? 'text-brand-600' : 'text-stone-500 hover:text-stone-800',
             )}
           >
-            {t === 'edit' ? 'Edit listing' : 'Overview'}
+            {t === 'edit' ? 'Edit listing' : t === 'bookings' ? 'Bookings' : 'Overview'}
+            {t === 'bookings' && venueBookings > 0 && (
+              <span className="rounded-full bg-brand-100 px-1.5 py-0.5 text-[10px] font-bold text-brand-700">
+                {venueBookings}
+              </span>
+            )}
             {dashTab === t && (
               <span className="absolute inset-x-2 -bottom-px h-0.5 rounded-full bg-brand-500" />
             )}
@@ -1034,6 +1191,10 @@ export default function MerchantDashboard() {
             </div>
           </aside>
         </div>
+      )}
+
+      {dashTab === 'bookings' && (
+        <BookingsTab business={business} />
       )}
 
       {dashTab === 'edit' && (

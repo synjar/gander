@@ -1,5 +1,6 @@
 import { useState, useMemo, type FormEvent } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
+import { Helmet } from 'react-helmet-async'
 import { Search, Sparkles, Star, TrendingUp, Trophy } from 'lucide-react'
 import clsx from 'clsx'
 import { businesses, businessesById } from '../data/businesses'
@@ -198,6 +199,12 @@ export default function Home() {
 
   return (
     <>
+      <Helmet>
+        <title>Gander — Discover {city.name}'s best restaurants, bars &amp; more</title>
+        <meta name="description" content={`Discover the best restaurants, cafés, bars and hidden gems in ${city.name}. Real reviews from real locals.`} />
+        <meta property="og:title" content={`Gander — ${city.name}'s best places`} />
+        <meta property="og:description" content={`Discover the best restaurants, cafés, bars and hidden gems in ${city.name}.`} />
+      </Helmet>
       <Hero />
       <CategoryTiles />
 

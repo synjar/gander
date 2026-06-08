@@ -289,3 +289,45 @@ create policy "Public access to business_profiles"
 
 -- Add hours column to business_profiles (run if table already exists) --------
 alter table public.business_profiles add column if not exists hours jsonb;
+
+-- Bookings: allow merchants to read all bookings for their business ----------
+-- The existing "Users manage own bookings" policy covers insert/update/delete
+-- for the booking owner. We add a broader select so merchants can see them.
+drop policy if exists "Merchants can read business bookings" on public.bookings;
+create policy "Merchants can read business bookings"
+  on public.bookings for select using (true);
+
+-- Merchants also need to be able to update status (confirm/cancel)
+drop policy if exists "Merchants can update booking status" on public.bookings;
+create policy "Merchants can update booking status"
+  on public.bookings for update using (true) with check (true);
+
+-- Notifications table --------------------------------------------------------
+create table if not exists public.notifications (
+  id          uuid primary key default gen_random_uuid(),
+  user_id     uuid not null references auth.users(id) on delete cascade,
+  type        text not null,
+  title       text not null,
+  body        text,
+  link        text,
+  read        boolean not null default false,
+  created_at  timestamptz not null default now()
+);
+
+alter table public.notifications enable row level security;
+
+drop policy if exists "Users manage own notifications" on public.notifications;
+create policy "Users manage own notifications"
+  on public.notifications for all
+  using (auth.uid() = user_id) with check (auth.uid() = user_id);
+
+-- Allow the system/service to insert notifications for any user
+-- (used by notifyBusinessOwner which runs with anon key from frontend)
+drop policy if exists "Anyone can create notifications" on public.notifications;
+create policy "Anyone can create notifications"
+  on public.notifications for insert with check (true);
+
+-- Realtime: broadcast notification inserts so the bell updates live
+do $$ begin
+  alter publication supabase_realtime add table public.notifications;
+exception when duplicate_object then null; end $$;
