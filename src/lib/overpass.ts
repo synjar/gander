@@ -98,13 +98,152 @@ function parseOpeningHours(raw: string | undefined): OpeningHours[] {
 /** Derive business tags from OSM tags */
 function parseTags(tags: Record<string, string>): string[] {
   const out: string[] = []
-  if (tags.cuisine)            out.push(capitalise(tags.cuisine.replace(/_/g, ' ')))
-  if (tags['outdoor_seating'] === 'yes') out.push('Outdoor seating')
-  if (tags['diet:vegetarian'] === 'yes') out.push('Vegetarian friendly')
-  if (tags['diet:vegan']      === 'yes') out.push('Vegan options')
-  if (tags['dog']             === 'yes') out.push('Dog friendly')
-  if (tags['takeaway']        === 'yes') out.push('Takeaway')
-  return out.slice(0, 4)
+  if (tags.cuisine)                           out.push(capitalise(tags.cuisine.replace(/_/g, ' ')))
+  if (tags['outdoor_seating'] === 'yes')      out.push('Outdoor seating')
+  if (tags['diet:vegetarian'] === 'yes')      out.push('Vegetarian friendly')
+  if (tags['diet:vegan']      === 'yes')      out.push('Vegan options')
+  if (tags['dog']             === 'yes' ||
+      tags['dogs']            === 'yes')      out.push('Dog friendly')
+  if (tags['takeaway']        === 'yes')      out.push('Takeaway')
+  if (tags['delivery']        === 'yes')      out.push('Delivery')
+  if (tags['internet_access'] === 'wlan' ||
+      tags['internet_access'] === 'yes'  ||
+      tags['wifi']            === 'yes')      out.push('Free WiFi')
+  if (tags['live_music']      === 'yes')      out.push('Live music')
+  if (tags['real_ale']        === 'yes')      out.push('Real ale')
+  if (tags['brewery'])                        out.push('Brewery')
+  if (tags['microbrewery']    === 'yes')      out.push('Microbrewery')
+  if (tags['garden']          === 'yes')      out.push('Beer garden')
+  if (tags['rooftop']         === 'yes')      out.push('Rooftop')
+  return out.slice(0, 6)
+}
+
+/** Derive amenities list from OSM tags */
+function parseAmenities(tags: Record<string, string>): string[] {
+  const out: string[] = []
+  if (tags['wheelchair'] === 'yes')           out.push('Wheelchair accessible')
+  if (tags['internet_access'] === 'wlan' ||
+      tags['internet_access'] === 'yes'  ||
+      tags['wifi']            === 'yes')      out.push('Free WiFi')
+  if (tags['outdoor_seating'] === 'yes')      out.push('Outdoor seating')
+  if (tags['dog'] === 'yes' ||
+      tags['dogs'] === 'yes')                 out.push('Dog friendly')
+  if (tags['live_music'] === 'yes')           out.push('Live music')
+  if (tags['air_conditioning'] === 'yes')     out.push('Air conditioning')
+  if (tags['smoking'] === 'outside' ||
+      tags['smoking'] === 'separated')        out.push('Smoking area')
+  if (tags['capacity'])                       out.push(`Seats ${tags['capacity']}`)
+  return out
+}
+
+/** Build a short description from available OSM tags */
+function buildDescription(
+  tags: Record<string, string>,
+  category: string,
+  nb: string,
+): { short: string; long: string } {
+  const desc  = tags['description'] ?? tags['short_description'] ?? ''
+  const brand = tags['brand'] ?? tags['operator'] ?? ''
+  const cuisine = tags['cuisine'] ? capitalise(tags['cuisine'].replace(/_/g, ' ')) : ''
+
+  let short = desc.slice(0, 160)
+  if (!short && cuisine) short = `${cuisine} in ${nb}`
+  if (!short && brand)   short = `${brand} in ${nb}`
+  if (!short)            short = `${capitalise(category.replace(/_/g, ' '))} in ${nb}`
+
+  return { short, long: desc }
+}
+
+// ─── Placeholder photos ────────────────────────────────────────────────────────
+// Curated Unsplash photo IDs per category — stable, no API key needed.
+const PLACEHOLDER_PHOTOS: Record<string, string[]> = {
+  restaurants: [
+    'photo-1414235077428-338989a2e8c0',
+    'photo-1517248135467-4c7edcad34c4',
+    'photo-1466978913421-dad2ebd01d17',
+    'photo-1555396273-367ea4eb4db5',
+    'photo-1424847651672-bf20a4b0982b',
+    'photo-1544025162-d76694265947',
+  ],
+  cafes: [
+    'photo-1501339847302-ac426a4a7cbb',
+    'photo-1495474472287-4d71bcdd2085',
+    'photo-1509042239860-f550ce710b93',
+    'photo-1442512595331-e89e73853f31',
+    'photo-1453614512568-c4024d13c247',
+  ],
+  pubs: [
+    'photo-1514362545857-3bc16c4c7d1b',
+    'photo-1436076863939-06870fe779c2',
+    'photo-1574096079513-d8259312b785',
+    'photo-1559526324-593bc073d938',
+    'photo-1567696153798-9111f9cd3d0d',
+  ],
+  bars: [
+    'photo-1543007630-9710e4a00a20',
+    'photo-1470337458703-46ad1756a187',
+    'photo-1551024709-8f23befc6f87',
+    'photo-1572116469696-31de0f17cc34',
+  ],
+  nightlife: [
+    'photo-1516450360452-9312f5e86fc7',
+    'photo-1574375927938-d5a98e8ffe85',
+    'photo-1598387846148-47e82ee120cc',
+  ],
+  salons: [
+    'photo-1560066984-138dadb4c035',
+    'photo-1522337360788-8b13dee7a37e',
+    'photo-1562322140-8baeececf3df',
+    'photo-1521590832167-7bcbfaa6381f',
+  ],
+  beauty: [
+    'photo-1487412947147-5cebf100d293',
+    'photo-1596704017254-9b121068fb31',
+    'photo-1570172619644-dfd03ed5d881',
+  ],
+  gyms: [
+    'photo-1534438327276-14e5300c3a48',
+    'photo-1571019614242-c5c5dee9f50b',
+    'photo-1574680096145-d05b474e2155',
+    'photo-1517836357463-d25dfeac3438',
+  ],
+  fitness: [
+    'photo-1534438327276-14e5300c3a48',
+    'photo-1571019614242-c5c5dee9f50b',
+  ],
+  spas: [
+    'photo-1540555700478-4be289fbecef',
+    'photo-1544161515-4ab6ce6db874',
+    'photo-1600334089648-b0d9d3028eb2',
+    'photo-1519823551278-64ac92734fb1',
+  ],
+  hotels: [
+    'photo-1566073771259-6a8506099945',
+    'photo-1520250497591-112f2f40a3f4',
+    'photo-1582719508461-905c673536f7',
+    'photo-1455587734955-081b22074882',
+  ],
+  shopping: [
+    'photo-1441986300917-64674bd600d8',
+    'photo-1472851294608-062f824d29cc',
+  ],
+  activities: [
+    'photo-1526401485004-46910ecc8e51',
+    'photo-1541534741688-6078c6bfb5c5',
+  ],
+  entertainment: [
+    'photo-1489599849927-2ee91cede3ba',
+    'photo-1514525253161-7a46d19cd819',
+  ],
+}
+
+const UNSPLASH_BASE = 'https://images.unsplash.com'
+
+/** Pick a stable placeholder photo URL for a given category + OSM element ID */
+function placeholderPhoto(category: string, osmNumericId: number): string {
+  const pool = PLACEHOLDER_PHOTOS[category] ?? PLACEHOLDER_PHOTOS.restaurants
+  const photoId = pool[osmNumericId % pool.length]
+  return `${UNSPLASH_BASE}/${photoId}?w=800&q=80&fit=crop&auto=format`
 }
 
 function capitalise(s: string): string {
@@ -239,10 +378,23 @@ out center tags ${limit};
     const lon = el.lon ?? el.center?.lon
     if (!lat || !lon) continue
 
-    const osmId = `${el.type}/${el.id}`
-    const slug  = `${slugify(name)}-osm-${el.id}`
-    const nb    = neighbourhood(t)
-    const hours = parseOpeningHours(t.opening_hours)
+    const osmId  = `${el.type}/${el.id}`
+    const slug   = `${slugify(name)}-osm-${el.id}`
+    const nb     = neighbourhood(t)
+    const hours  = parseOpeningHours(t.opening_hours)
+    const { short, long } = buildDescription(t, amenity, nb)
+    const cuisine = t.cuisine ? capitalise(t.cuisine.replace(/_/g, ' ')) : undefined
+
+    // Real image from OSM if available, otherwise stable category placeholder
+    const osmImage = t.image || t['wikimedia_commons:image'] || ''
+    const heroImage = osmImage || placeholderPhoto(category, el.id)
+
+    // Price level: derive from OSM fee/stars or default to 2
+    const stars = parseInt(t['stars'] ?? t['hotel:stars'] ?? '0', 10)
+    const priceLevel: 1|2|3|4 =
+      stars >= 4 ? 4 : stars >= 3 ? 3 :
+      t['price_range'] === 'cheap' ? 1 :
+      t['price_range'] === 'upscale' ? 4 : 2
 
     venues.push({
       id:               `osm-${el.id}`,
@@ -252,9 +404,9 @@ out center tags ${limit};
       source:           'osm',
       claimed:          false,
       category,
-      cuisine:          t.cuisine ? capitalise(t.cuisine.replace(/_/g, ' ')) : undefined,
+      cuisine,
       tags:             parseTags(t),
-      priceLevel:       2,
+      priceLevel,
       neighbourhood:    nb,
       city:             cityId === 'west-sussex' ? 'West Sussex' : cityId,
       cityId,
@@ -262,15 +414,15 @@ out center tags ${limit};
       postcode:         t['addr:postcode'] ?? '',
       phone:            t.phone ?? t['contact:phone'] ?? '',
       website:          t.website ?? t['contact:website'] ?? '',
-      heroImage:        '',
+      heroImage,
       images:           [],
-      shortDescription: '',
-      description:      '',
+      shortDescription: short,
+      description:      long,
       hours,
-      openNow:          false, // computed dynamically by getOpenStatus
-      amenities:        [],
-      bookable:         false,
-      delivers:         false,
+      openNow:          false,
+      amenities:        parseAmenities(t),
+      bookable:         ['restaurants','gyms','spas','salons','hotels'].includes(category),
+      delivers:         t['delivery'] === 'yes',
       lat,
       lng:              lon,
     })
