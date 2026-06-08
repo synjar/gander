@@ -2,7 +2,6 @@ import { useState, useEffect, useCallback, useRef } from 'react'
 import { Link } from 'react-router-dom'
 import {
   Award,
-  Bike,
   CalendarCheck,
   CheckCheck,
   Copy,
@@ -31,7 +30,7 @@ import BusinessCard from '../components/BusinessCard'
 import ReviewCard from '../components/ReviewCard'
 import LevelBadge from '../components/LevelBadge'
 
-type Tab = 'reviews' | 'saved' | 'bookings' | 'wallet' | 'orders'
+type Tab = 'reviews' | 'saved' | 'bookings' | 'wallet'
 
 function prettyDate(iso: string): string {
   const d = new Date(iso + 'T00:00:00')
@@ -77,7 +76,7 @@ function EmptyState({
 }
 
 export default function Profile() {
-  const { allReviews, favourites, bookings, vouchers, orders, cancelBooking } = useStore()
+  const { allReviews, favourites, bookings, vouchers, cancelBooking } = useStore()
   const { user, configured, signOut } = useAuth()
   const [tab, setTab] = useState<Tab>('reviews')
 
@@ -142,7 +141,6 @@ export default function Profile() {
     { id: 'saved', label: 'Saved', count: saved.length },
     { id: 'bookings', label: 'Bookings', count: bookings.length },
     { id: 'wallet', label: 'Wallet', count: vouchers.length },
-    { id: 'orders', label: 'Orders', count: orders.length },
   ]
 
   return (
@@ -453,47 +451,6 @@ export default function Profile() {
                     </span>
                   </div>
                 ))}
-              </div>
-            ))}
-
-          {tab === 'orders' &&
-            (orders.length === 0 ? (
-              <EmptyState
-                icon={Bike}
-                title="No orders yet"
-                body="Order delivery from a venue and it’ll appear here."
-                cta={{ to: '/', label: 'Find food to order' }}
-              />
-            ) : (
-              <div className="space-y-3">
-                {orders.map((o) => {
-                  const biz = businessesById[o.businessId]
-                  return (
-                    <div
-                      key={o.id}
-                      className="flex items-center gap-4 rounded-2xl border border-stone-200 bg-white p-4"
-                    >
-                      <div className="grid h-12 w-12 shrink-0 place-items-center rounded-xl bg-emerald-50 text-emerald-600">
-                        <Bike size={22} />
-                      </div>
-                      <div className="min-w-0 flex-1">
-                        <Link
-                          to={biz ? `/b/${biz.slug}` : '#'}
-                          className="font-semibold text-stone-900 hover:text-brand-600"
-                        >
-                          {o.businessName}
-                        </Link>
-                        <p className="text-sm text-stone-500">
-                          {o.items} {o.items === 1 ? 'item' : 'items'} ·{' '}
-                          {new Date(o.createdAt).toLocaleDateString('en-GB')}
-                        </p>
-                      </div>
-                      <span className="shrink-0 font-semibold text-stone-700">
-                        {formatPrice(o.total)}
-                      </span>
-                    </div>
-                  )
-                })}
               </div>
             ))}
         </div>

@@ -131,7 +131,6 @@ function parseTags(tags: Record<string, string>): string[] {
   if (tags['dog']             === 'yes' ||
       tags['dogs']            === 'yes')      out.push('Dog friendly')
   if (tags['takeaway']        === 'yes')      out.push('Takeaway')
-  if (tags['delivery']        === 'yes')      out.push('Delivery')
   if (tags['internet_access'] === 'wlan' ||
       tags['internet_access'] === 'yes'  ||
       tags['wifi']            === 'yes')      out.push('Free WiFi')

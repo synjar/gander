@@ -3,7 +3,6 @@ import { Link } from 'react-router-dom'
 import {
   ArrowLeft,
   ArrowRight,
-  Bike,
   Building2,
   CalendarCheck,
   Check,
@@ -236,7 +235,6 @@ function Step2({ f, set }: { f: FormState; set: (p: Partial<FormState>) => void 
       <div className="space-y-3 pt-1">
         {[
           { key: 'bookable' as const, icon: CalendarCheck, label: 'Accept bookings', body: 'Customers can reserve a table, appointment or class' },
-          { key: 'delivers' as const, icon: Bike, label: 'Offer delivery', body: 'Customers can order food or items for delivery' },
         ].map(({ key, icon: Icon, label, body }) => (
           <button
             key={key}

@@ -3,7 +3,6 @@ import { Link, useParams, useSearchParams } from 'react-router-dom'
 import { Helmet } from 'react-helmet-async'
 import {
   Award,
-  Bike,
   Building2,
   CalendarCheck,
   Check,
@@ -32,7 +31,6 @@ import ReviewCard from '../components/ReviewCard'
 import FavouriteButton from '../components/FavouriteButton'
 import ReviewModal from '../components/ReviewModal'
 import BookingModal from '../components/BookingModal'
-import OrderModal from '../components/OrderModal'
 import Lightbox from '../components/Lightbox'
 import CheckInButton from '../components/CheckInButton'
 import DirectionsButton from '../components/DirectionsButton'
@@ -119,7 +117,6 @@ export default function BusinessDetail() {
     : undefined
   const [reviewOpen, setReviewOpen] = useState(false)
   const [bookOpen, setBookOpen] = useState(false)
-  const [orderOpen, setOrderOpen] = useState(false)
   const [toast, setToast] = useState('')
   const [profile, setProfile] = useState<db.BusinessProfile | null>(null)
   const [lightboxIndex, setLightboxIndex] = useState<number | null>(null)
@@ -392,14 +389,6 @@ export default function BusinessDetail() {
             <CalendarCheck size={17} /> {booking.label}
           </button>
         )}
-        {b.delivers && b.category !== 'attractions' && (
-          <button
-            onClick={() => setOrderOpen(true)}
-            className="flex items-center gap-2 rounded-full border border-stone-200 bg-white px-5 py-2.5 text-sm font-semibold text-stone-800 transition hover:bg-stone-50"
-          >
-            <Bike size={17} className="text-emerald-600" /> Order delivery
-          </button>
-        )}
         <button
           onClick={() => setReviewOpen(true)}
           className="flex items-center gap-2 rounded-full border border-stone-200 bg-white px-5 py-2.5 text-sm font-semibold text-stone-800 transition hover:bg-stone-50"
@@ -651,7 +640,6 @@ export default function BusinessDetail() {
       {/* Modals + toast */}
       <ReviewModal open={reviewOpen} onClose={() => setReviewOpen(false)} business={b} />
       <BookingModal open={bookOpen} onClose={() => setBookOpen(false)} business={b} mode={booking.mode} />
-      <OrderModal open={orderOpen} onClose={() => setOrderOpen(false)} business={b} />
       {toast && (
         <div className="fixed bottom-24 left-1/2 z-50 -translate-x-1/2 rounded-full bg-stone-900 px-4 py-2 text-sm font-medium text-white shadow-lg md:bottom-8">
           {toast}
