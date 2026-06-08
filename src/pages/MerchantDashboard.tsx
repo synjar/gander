@@ -1512,14 +1512,48 @@ export default function MerchantDashboard() {
     }
   }, [ownedBusinesses, managedBusinessId, setManagedBusiness])
 
-  // Look up in seed data first, then live businesses; apply hero image override
+  // Look up in seed data first, then live businesses
   const businessRaw =
     businessesById[managedBusinessId] ??
     liveBusinesses.find((b) => b.id === managedBusinessId) ??
     (ownedBusinesses[0] ?? businesses[0])
-  const business = profileHeroImages.has(businessRaw.id)
-    ? { ...businessRaw, heroImage: profileHeroImages.get(businessRaw.id)! }
-    : businessRaw
+
+  // Load the owner-saved profile so the dashboard reflects edits (the public
+  // page already merges this; the dashboard previously read raw data only —
+  // which made Listing strength think saved fields were still empty).
+  const [profile, setProfile] = useState<db.BusinessProfile | null>(null)
+  useEffect(() => {
+    setProfile(null)
+    if (db.backendEnabled) db.getBusinessProfile(businessRaw.id).then(setProfile).catch(() => {})
+  }, [businessRaw.id])
+
+  const business = useMemo<Business>(() => {
+    const hero = profileHeroImages.get(businessRaw.id)
+    let b: Business = hero ? { ...businessRaw, heroImage: hero } : businessRaw
+    if (profile) {
+      const hoursArr = profile.hours
+        ? Object.entries(profile.hours)
+            .filter(([, v]) => v && !v.closed)
+            .map(([day, v]) => ({ day, open: v.open, close: v.close }))
+        : []
+      b = {
+        ...b,
+        name: profile.name || b.name,
+        shortDescription: profile.shortDescription || b.shortDescription,
+        description: profile.description || b.description,
+        phone: profile.phone || b.phone,
+        website: profile.website || b.website,
+        address: profile.address || b.address,
+        postcode: profile.postcode || b.postcode,
+        heroImage: profile.heroImageUrl || b.heroImage,
+        images: profile.galleryUrls?.length ? profile.galleryUrls : b.images,
+        amenities: profile.amenities?.length ? profile.amenities : b.amenities,
+        hours: hoursArr.length ? hoursArr : b.hours,
+        popularDishes: profile.popularDishes?.length ? profile.popularDishes : b.popularDishes,
+      }
+    }
+    return b
+  }, [businessRaw, profile, profileHeroImages])
   const stats = statsFor(business)
   const reviews = reviewsFor(business.id)
   const venueDeals = dealsForBusinessId(business.id)
