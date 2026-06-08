@@ -1,7 +1,7 @@
-import { useMemo, useState } from 'react'
+import { useMemo, useState, useCallback } from 'react'
 import { useSearchParams } from 'react-router-dom'
 import { Helmet } from 'react-helmet-async'
-import { MapPin, SlidersHorizontal, X } from 'lucide-react'
+import { Locate, Loader2, MapPin, SlidersHorizontal, X } from 'lucide-react'
 import clsx from 'clsx'
 import { businesses } from '../data/businesses'
 import { categories, categoryMap } from '../data/categories'
@@ -9,13 +9,15 @@ import type { Business } from '../data/types'
 import { useCity } from '../city/CityContext'
 import { useStore } from '../store/StoreContext'
 import { priceLevel } from '../lib/format'
+import { distanceKm, formatDistance } from '../lib/xp'
 import BusinessCard from '../components/BusinessCard'
 import MapView from '../components/MapView'
 
-type SortKey = 'recommended' | 'rating' | 'reviews' | 'price-asc' | 'price-desc'
+type SortKey = 'recommended' | 'rating' | 'reviews' | 'price-asc' | 'price-desc' | 'nearby'
 
 const sortLabels: Record<SortKey, string> = {
   recommended: 'Recommended',
+  nearby: 'Nearest first',
   rating: 'Highest rated',
   reviews: 'Most reviewed',
   'price-asc': 'Price: low to high',
@@ -75,6 +77,41 @@ export default function Search() {
   const [sort, setSort] = useState<SortKey>('recommended')
   const [showFilters, setShowFilters] = useState(false)
 
+  // Near-me state
+  const [userLat, setUserLat] = useState<number | null>(null)
+  const [userLng, setUserLng] = useState<number | null>(null)
+  const [geoLoading, setGeoLoading] = useState(false)
+  const [geoError, setGeoError] = useState<string | null>(null)
+
+  const handleNearMe = useCallback(() => {
+    if (userLat !== null) {
+      // Already have position — toggle off
+      setUserLat(null)
+      setUserLng(null)
+      setSort('recommended')
+      return
+    }
+    if (!navigator.geolocation) {
+      setGeoError('Geolocation not supported by your browser')
+      return
+    }
+    setGeoLoading(true)
+    setGeoError(null)
+    navigator.geolocation.getCurrentPosition(
+      (pos) => {
+        setUserLat(pos.coords.latitude)
+        setUserLng(pos.coords.longitude)
+        setSort('nearby')
+        setGeoLoading(false)
+      },
+      () => {
+        setGeoError('Could not get your location')
+        setGeoLoading(false)
+      },
+      { timeout: 8000, maximumAge: 60_000 },
+    )
+  }, [userLat])
+
   function setParam(key: string, value: string) {
     const next = new URLSearchParams(params)
     if (!value || value === 'all') next.delete(key)
@@ -88,6 +125,18 @@ export default function Search() {
     )
   }
 
+  // Build distance map when user location is known
+  const distanceMap = useMemo<Map<string, number>>(() => {
+    const map = new Map<string, number>()
+    if (userLat === null || userLng === null) return map
+    for (const b of allBiz) {
+      if (b.lat != null && b.lng != null) {
+        map.set(b.id, distanceKm(userLat, userLng, b.lat, b.lng))
+      }
+    }
+    return map
+  }, [userLat, userLng, allBiz])
+
   const results = useMemo(() => {
     let list = allBiz.filter(
       (b) => b.cityId === city.id && !hiddenBusinesses.includes(b.id) && matchesQuery(b, q),
@@ -99,6 +148,9 @@ export default function Search() {
     if (minRating) list = list.filter((b) => b.rating >= minRating)
 
     switch (sort) {
+      case 'nearby':
+        list = [...list].sort((a, b) => (distanceMap.get(a.id) ?? Infinity) - (distanceMap.get(b.id) ?? Infinity))
+        break
       case 'rating':
         list = [...list].sort((a, b) => b.rating - a.rating)
         break
@@ -117,7 +169,7 @@ export default function Search() {
         )
     }
     return list
-  }, [q, category, neighbourhood, prices, minRating, sort, city, hiddenBusinesses, allBiz])
+  }, [q, category, neighbourhood, prices, minRating, sort, city, hiddenBusinesses, allBiz, distanceMap])
 
   const hasFilters = category !== 'all' || neighbourhood !== 'all' || prices.length > 0 || minRating > 0
 
@@ -146,6 +198,27 @@ export default function Search() {
           </p>
         </div>
         <div className="flex items-center gap-2">
+          {/* Near me button */}
+          <button
+            type="button"
+            onClick={handleNearMe}
+            title={geoError ?? undefined}
+            className={clsx(
+              'flex items-center gap-1.5 rounded-full border px-3 py-2 text-sm font-medium transition',
+              userLat !== null
+                ? 'border-brand-300 bg-brand-50 text-brand-700'
+                : geoError
+                  ? 'border-red-200 bg-red-50 text-red-600'
+                  : 'border-stone-200 text-stone-700 hover:bg-stone-50',
+            )}
+          >
+            {geoLoading ? (
+              <Loader2 size={15} className="animate-spin" />
+            ) : (
+              <Locate size={15} />
+            )}
+            <span className="hidden sm:inline">Near me</span>
+          </button>
           <button
             type="button"
             onClick={() => setShowFilters((s) => !s)}
@@ -265,9 +338,17 @@ export default function Search() {
             </div>
           ) : (
             <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-3">
-              {results.map((b) => (
-                <BusinessCard key={b.id} business={b} showRank />
-              ))}
+              {results.map((b) => {
+                const km = distanceMap.get(b.id)
+                return (
+                  <BusinessCard
+                    key={b.id}
+                    business={b}
+                    showRank
+                    distance={km != null ? formatDistance(km) : undefined}
+                  />
+                )
+              })}
             </div>
           )}
         </div>

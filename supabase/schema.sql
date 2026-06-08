@@ -331,3 +331,86 @@ create policy "Anyone can create notifications"
 do $$ begin
   alter publication supabase_realtime add table public.notifications;
 exception when duplicate_object then null; end $$;
+
+-- Check-ins ------------------------------------------------------------------
+create table if not exists public.check_ins (
+  id          uuid primary key default gen_random_uuid(),
+  user_id     uuid not null references auth.users(id) on delete cascade,
+  business_id text not null,
+  created_at  timestamptz not null default now()
+);
+
+alter table public.check_ins enable row level security;
+
+drop policy if exists "Users manage own check_ins" on public.check_ins;
+create policy "Users manage own check_ins"
+  on public.check_ins for all
+  using (auth.uid() = user_id) with check (auth.uid() = user_id);
+
+-- Anyone can read check-in counts (for display on business pages)
+drop policy if exists "Anyone can read check_ins" on public.check_ins;
+create policy "Anyone can read check_ins"
+  on public.check_ins for select using (true);
+
+-- Follows --------------------------------------------------------------------
+create table if not exists public.follows (
+  follower_id  uuid not null references auth.users(id) on delete cascade,
+  following_id uuid not null references auth.users(id) on delete cascade,
+  created_at   timestamptz not null default now(),
+  primary key (follower_id, following_id)
+);
+
+alter table public.follows enable row level security;
+
+drop policy if exists "Users manage own follows" on public.follows;
+create policy "Users manage own follows"
+  on public.follows for all
+  using (auth.uid() = follower_id) with check (auth.uid() = follower_id);
+
+drop policy if exists "Anyone can read follows" on public.follows;
+create policy "Anyone can read follows"
+  on public.follows for select using (true);
+
+-- Referrals ------------------------------------------------------------------
+create table if not exists public.referrals (
+  id           uuid primary key default gen_random_uuid(),
+  referrer_id  uuid not null references auth.users(id) on delete cascade,
+  referred_id  uuid not null references auth.users(id) on delete cascade,
+  created_at   timestamptz not null default now(),
+  unique (referred_id) -- each user can only be referred once
+);
+
+alter table public.referrals enable row level security;
+
+drop policy if exists "Public access to referrals" on public.referrals;
+create policy "Public access to referrals"
+  on public.referrals for all using (true) with check (true);
+
+-- XP: award_points RPC -------------------------------------------------------
+-- Atomically increments a user's points and updates their level.
+-- Level thresholds: 1=0, 2=100, 3=300, 4=700, 5=1500
+create or replace function public.award_points(p_user_id uuid, p_amount int)
+returns void language plpgsql security definer set search_path = public as $$
+declare
+  v_new_points int;
+  v_new_level int;
+begin
+  update profiles
+    set points = points + p_amount
+    where id = p_user_id
+    returning points into v_new_points;
+
+  -- Derive level from new points total
+  v_new_level := case
+    when v_new_points >= 1500 then 5
+    when v_new_points >= 700  then 4
+    when v_new_points >= 300  then 3
+    when v_new_points >= 100  then 2
+    else 1
+  end;
+
+  update profiles
+    set level = v_new_level
+    where id = p_user_id;
+end;
+$$;

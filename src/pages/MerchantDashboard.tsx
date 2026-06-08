@@ -497,6 +497,119 @@ function PhotoSlot({
   )
 }
 
+// ─── Analytics Tab ──────────────────────────────────────────────────────────
+
+function BarChart({ data, maxVal, color = '#f97316' }: { data: { label: string; value: number }[]; maxVal: number; color?: string }) {
+  return (
+    <div className="flex items-end justify-around gap-1 pt-4">
+      {data.map(({ label, value }) => {
+        const pct = maxVal > 0 ? (value / maxVal) * 100 : 0
+        return (
+          <div key={label} className="flex flex-1 flex-col items-center gap-1.5">
+            <span className="text-[10px] font-semibold text-stone-600">{value > 0 ? value : ''}</span>
+            <div className="w-full rounded-t-md transition-all duration-700" style={{ height: 80, display: 'flex', alignItems: 'flex-end' }}>
+              <div
+                className="w-full rounded-t-md transition-all duration-700"
+                style={{ height: `${Math.max(pct, 2)}%`, backgroundColor: color }}
+              />
+            </div>
+            <span className="text-[10px] text-stone-500">{label}</span>
+          </div>
+        )
+      })}
+    </div>
+  )
+}
+
+function AnalyticsTab({ business }: { business: Business }) {
+  const [revenueTrend, setRevenueTrend] = useState<db.MonthlyRevenue[]>([])
+  const [dayBookings, setDayBookings] = useState<db.DayBookings[]>([])
+  const [loading, setLoading] = useState(true)
+
+  useEffect(() => {
+    const bid = business.id
+    Promise.all([
+      db.getVoucherRevenueTrend(bid),
+      db.getBookingsByDayOfWeek(bid),
+    ]).then(([rev, days]) => {
+      setRevenueTrend(rev)
+      setDayBookings(days)
+      setLoading(false)
+    })
+  }, [business.id])
+
+  const maxBookings = Math.max(...dayBookings.map((d) => d.count), 1)
+
+  const totalRevenue = revenueTrend.reduce((s, r) => s + r.revenue, 0)
+  const totalVouchers = revenueTrend.reduce((s, r) => s + r.count, 0)
+  const totalBookings = dayBookings.reduce((s, d) => s + d.count, 0)
+
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center py-20">
+        <Loader2 className="animate-spin text-brand-500" size={32} />
+      </div>
+    )
+  }
+
+  return (
+    <div className="mt-6 space-y-6">
+      {/* KPI strip */}
+      <div className="grid grid-cols-2 gap-4 sm:grid-cols-3">
+        <div className="rounded-2xl border border-stone-200 bg-white p-4 text-center">
+          <p className="text-2xl font-display font-semibold text-stone-900">
+            £{(totalRevenue / 100).toFixed(0)}
+          </p>
+          <p className="mt-0.5 text-xs text-stone-500">Voucher revenue (6 mo)</p>
+        </div>
+        <div className="rounded-2xl border border-stone-200 bg-white p-4 text-center">
+          <p className="text-2xl font-display font-semibold text-stone-900">{totalVouchers}</p>
+          <p className="mt-0.5 text-xs text-stone-500">Vouchers sold</p>
+        </div>
+        <div className="col-span-2 rounded-2xl border border-stone-200 bg-white p-4 text-center sm:col-span-1">
+          <p className="text-2xl font-display font-semibold text-stone-900">{totalBookings}</p>
+          <p className="mt-0.5 text-xs text-stone-500">Total bookings</p>
+        </div>
+      </div>
+
+      {/* Revenue trend */}
+      <div className="rounded-2xl border border-stone-200 bg-white p-5">
+        <h3 className="font-semibold text-stone-900">Voucher revenue — last 6 months</h3>
+        {revenueTrend.length === 0 ? (
+          <p className="mt-4 text-center text-sm text-stone-400">No voucher sales yet.</p>
+        ) : (
+          <BarChart
+            data={revenueTrend.map((r) => ({ label: r.month, value: r.count }))}
+            maxVal={Math.max(...revenueTrend.map((r) => r.count), 1)}
+            color="#f97316"
+          />
+        )}
+        {revenueTrend.length > 0 && (
+          <p className="mt-2 text-right text-xs text-stone-400">
+            Revenue shown as voucher count · £{(totalRevenue / 100).toFixed(0)} total
+          </p>
+        )}
+      </div>
+
+      {/* Bookings by day */}
+      <div className="rounded-2xl border border-stone-200 bg-white p-5">
+        <h3 className="font-semibold text-stone-900">Bookings by day of week</h3>
+        {dayBookings.length === 0 ? (
+          <p className="mt-4 text-center text-sm text-stone-400">No bookings data yet.</p>
+        ) : (
+          <BarChart
+            data={dayBookings.map((d) => ({ label: d.day, value: d.count }))}
+            maxVal={maxBookings}
+            color="#8b5cf6"
+          />
+        )}
+      </div>
+    </div>
+  )
+}
+
+// ─── Edit Listing Tab ────────────────────────────────────────────────────────
+
 function EditListingTab({ business }: { business: Business }) {
   const { configured } = useAuth()
   const [loading, setLoading] = useState(true)
@@ -1013,7 +1126,7 @@ export default function MerchantDashboard() {
   const saves = Math.round(stats.reviewCount * 0.9)
 
   const [showScanner, setShowScanner] = useState(false)
-  const [dashTab, setDashTab] = useState<'overview' | 'bookings' | 'edit'>('overview')
+  const [dashTab, setDashTab] = useState<'overview' | 'bookings' | 'analytics' | 'edit'>('overview')
 
   // Avg spend from real voucher data
   const [voucherStats, setVoucherStats] = useState<{ count: number; avgSpend: number | null; totalRevenue: number } | null>(null)
@@ -1120,17 +1233,17 @@ export default function MerchantDashboard() {
       </div>
 
       {/* Tabs */}
-      <div className="mt-6 flex gap-1 border-b border-stone-200">
-        {(['overview', 'bookings', 'edit'] as const).map((t) => (
+      <div className="mt-6 -mx-4 flex gap-1 overflow-x-auto border-b border-stone-200 px-4 no-scrollbar sm:mx-0 sm:px-0">
+        {(['overview', 'bookings', 'analytics', 'edit'] as const).map((t) => (
           <button
             key={t}
             onClick={() => setDashTab(t)}
             className={clsx(
-              'relative flex items-center gap-1.5 px-4 py-3 text-sm font-semibold capitalize transition',
+              'relative flex shrink-0 items-center gap-1.5 px-4 py-3 text-sm font-semibold transition',
               dashTab === t ? 'text-brand-600' : 'text-stone-500 hover:text-stone-800',
             )}
           >
-            {t === 'edit' ? 'Edit listing' : t === 'bookings' ? 'Bookings' : 'Overview'}
+            {t === 'edit' ? 'Edit listing' : t === 'bookings' ? 'Bookings' : t === 'analytics' ? 'Analytics' : 'Overview'}
             {t === 'bookings' && venueBookings > 0 && (
               <span className="rounded-full bg-brand-100 px-1.5 py-0.5 text-[10px] font-bold text-brand-700">
                 {venueBookings}
@@ -1202,6 +1315,10 @@ export default function MerchantDashboard() {
 
       {dashTab === 'bookings' && (
         <BookingsTab business={business} />
+      )}
+
+      {dashTab === 'analytics' && (
+        <AnalyticsTab business={business} />
       )}
 
       {dashTab === 'edit' && (

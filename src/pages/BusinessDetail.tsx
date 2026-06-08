@@ -31,6 +31,7 @@ import ReviewModal from '../components/ReviewModal'
 import BookingModal from '../components/BookingModal'
 import OrderModal from '../components/OrderModal'
 import Lightbox from '../components/Lightbox'
+import CheckInButton from '../components/CheckInButton'
 
 function bookingConfig(b: Business): { label: string; mode: 'table' | 'class' | 'treatment' } {
   switch (b.category) {
@@ -321,6 +322,7 @@ export default function BusinessDetail() {
         >
           <PenLine size={17} className="text-brand-500" /> Write a review
         </button>
+        <CheckInButton businessId={b.id} businessName={b.name} />
         <span className="ml-auto flex items-center gap-1">
           <span className="flex items-center gap-2 rounded-full border border-stone-200 bg-white px-1 py-1">
             <FavouriteButton id={b.id} variant="plain" />

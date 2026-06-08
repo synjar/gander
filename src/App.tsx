@@ -1,3 +1,4 @@
+import { useEffect } from 'react'
 import { createBrowserRouter, RouterProvider } from 'react-router-dom'
 import { HelmetProvider } from 'react-helmet-async'
 import Layout from './components/Layout'
@@ -41,6 +42,14 @@ const router = createBrowserRouter([
 ])
 
 export default function App() {
+  // Capture referral code from URL and persist it — processed after sign-in
+  useEffect(() => {
+    const ref = new URLSearchParams(window.location.search).get('ref')
+    if (ref && ref.length === 8) {
+      localStorage.setItem('gander.ref', ref.toUpperCase())
+    }
+  }, [])
+
   return (
     <HelmetProvider>
       <RouterProvider router={router} />

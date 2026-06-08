@@ -6,6 +6,7 @@ import Avatar from './Avatar'
 import Stars from './Stars'
 import LevelBadge from './LevelBadge'
 import SmartImage from './SmartImage'
+import FollowButton from './FollowButton'
 
 function SubScore({ label, value }: { label: string; value?: number }) {
   if (value == null) return null
@@ -26,10 +27,11 @@ export default function ReviewCard({ review: r }: { review: Review }) {
     <article className="border-b border-stone-100 py-5 last:border-0">
       <div className="flex items-center gap-3">
         <Avatar name={r.authorName} src={r.authorAvatar} size={44} />
-        <div className="min-w-0">
-          <div className="flex items-center gap-1.5">
+        <div className="min-w-0 flex-1">
+          <div className="flex items-center gap-1.5 flex-wrap">
             <span className="font-semibold text-stone-900">{r.authorName}</span>
             <LevelBadge level={r.authorLevel} />
+            <FollowButton targetUserId={r.authorId} />
           </div>
           <div className="flex items-center gap-2 text-xs text-stone-400">
             <span>{r.date}</span>

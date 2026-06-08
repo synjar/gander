@@ -1,11 +1,15 @@
+import { useState, useEffect } from 'react'
 import { Link } from 'react-router-dom'
-import { Heart, MapPin, MessageCircle, PenLine, Share2, TrendingUp } from 'lucide-react'
+import { Heart, MapPin, MessageCircle, PenLine, Share2, TrendingUp, Users } from 'lucide-react'
 import clsx from 'clsx'
 import { seedFeed } from '../data/feed'
 import { businessesById } from '../data/businesses'
-import { users, currentUser } from '../data/users'
+import { currentUser } from '../data/users'
 import type { FeedPost } from '../data/types'
 import { useStore } from '../store/StoreContext'
+import { useAuth } from '../auth/AuthContext'
+import * as db from '../lib/db'
+import type { LeaderboardEntry } from '../lib/db'
 import Avatar from '../components/Avatar'
 import Stars from '../components/Stars'
 import SmartImage from '../components/SmartImage'
@@ -114,11 +118,29 @@ function Composer() {
   )
 }
 
+type FeedFilter = 'all' | 'following'
+
 export default function Feed() {
-  const leaderboard = [...users]
-    .filter((u) => u.id !== 'me')
-    .sort((a, b) => b.points - a.points)
-    .slice(0, 5)
+  const { user, configured } = useAuth()
+  const isRealUser = configured && !user.isGuest
+
+  const [filter, setFilter] = useState<FeedFilter>('all')
+  const [leaderboard, setLeaderboard] = useState<LeaderboardEntry[]>([])
+  const [followingIds, setFollowingIds] = useState<Set<string>>(new Set())
+
+  useEffect(() => {
+    db.getLeaderboard(5).then(setLeaderboard)
+  }, [])
+
+  useEffect(() => {
+    if (!isRealUser || !user.id) return
+    db.getFollowing(user.id).then((ids) => setFollowingIds(new Set(ids)))
+  }, [isRealUser, user.id])
+
+  const allPosts = seedFeed
+  const visiblePosts = filter === 'following' && followingIds.size > 0
+    ? allPosts.filter((p) => followingIds.has(p.userId))
+    : allPosts
 
   const tags = ['#SundayRoast', '#BottomlessBrunch', '#DimSum', '#NaturalWine', '#SkinFade', '#RooftopBars']
 
@@ -127,12 +149,42 @@ export default function Feed() {
       <h1 className="font-display text-2xl font-semibold text-stone-900 sm:text-3xl">Community feed</h1>
       <p className="mt-1 text-sm text-stone-500">See what Gander reviewers are discovering around town.</p>
 
+      {/* Filter tabs */}
+      <div className="mt-4 flex gap-1 border-b border-stone-200">
+        {(['all', 'following'] as FeedFilter[]).map((f) => (
+          <button
+            key={f}
+            onClick={() => setFilter(f)}
+            className={clsx(
+              'relative flex items-center gap-1.5 px-4 py-3 text-sm font-semibold transition',
+              filter === f ? 'text-brand-600' : 'text-stone-500 hover:text-stone-800',
+            )}
+          >
+            {f === 'following' && <Users size={14} />}
+            {f === 'all' ? 'For you' : 'Following'}
+            {filter === f && (
+              <span className="absolute inset-x-2 -bottom-px h-0.5 rounded-full bg-brand-500" />
+            )}
+          </button>
+        ))}
+      </div>
+
       <div className="mt-5 grid gap-6 lg:grid-cols-[1fr_18rem]">
         <div className="space-y-4">
           <Composer />
-          {seedFeed.map((post) => (
-            <PostCard key={post.id} post={post} />
-          ))}
+          {visiblePosts.length === 0 ? (
+            <div className="rounded-2xl border border-dashed border-stone-300 py-16 text-center">
+              <Users className="mx-auto text-stone-300" size={38} />
+              <p className="mt-3 font-semibold text-stone-700">No posts yet</p>
+              <p className="mt-1 text-sm text-stone-500">
+                Follow reviewers to see their activity here.
+              </p>
+            </div>
+          ) : (
+            visiblePosts.map((post) => (
+              <PostCard key={post.id} post={post} />
+            ))
+          )}
         </div>
 
         <aside className="hidden space-y-5 lg:block">
@@ -141,21 +193,25 @@ export default function Feed() {
               <h3 className="flex items-center gap-1.5 font-semibold text-stone-900">
                 <TrendingUp size={16} className="text-brand-500" /> Top reviewers
               </h3>
-              <ul className="mt-3 space-y-3">
-                {leaderboard.map((u, i) => (
-                  <li key={u.id} className="flex items-center gap-3">
-                    <span className="w-4 text-sm font-bold text-stone-400">{i + 1}</span>
-                    <Avatar name={u.name} src={u.avatar} size={36} />
-                    <div className="min-w-0 flex-1">
-                      <p className="truncate text-sm font-semibold text-stone-900">{u.name}</p>
-                      <p className="text-xs text-stone-400">
-                        {u.reviewCount} reviews · {u.points.toLocaleString('en-GB')} pts
-                      </p>
-                    </div>
-                    <LevelBadge level={u.level} />
-                  </li>
-                ))}
-              </ul>
+              {leaderboard.length === 0 ? (
+                <p className="mt-3 text-sm text-stone-400">No data yet</p>
+              ) : (
+                <ul className="mt-3 space-y-3">
+                  {leaderboard.map((u, i) => (
+                    <li key={u.id} className="flex items-center gap-3">
+                      <span className="w-4 text-sm font-bold text-stone-400">{i + 1}</span>
+                      <Avatar name={u.name} src={u.avatar} size={36} />
+                      <div className="min-w-0 flex-1">
+                        <p className="truncate text-sm font-semibold text-stone-900">{u.name}</p>
+                        <p className="text-xs text-stone-400">
+                          {u.points.toLocaleString('en-GB')} pts
+                        </p>
+                      </div>
+                      <LevelBadge level={u.level} />
+                    </li>
+                  ))}
+                </ul>
+              )}
             </div>
 
             <div className="rounded-2xl bg-white p-5 card-shadow ring-1 ring-stone-100">

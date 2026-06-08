@@ -1,15 +1,19 @@
-import { useState } from 'react'
+import { useState, useEffect, useCallback } from 'react'
 import { Link } from 'react-router-dom'
 import {
   Award,
   Bike,
   CalendarCheck,
+  CheckCheck,
+  Copy,
   Heart,
   LogOut,
   MapPin,
   Settings,
+  Share2,
   Star,
   Ticket,
+  Users,
 } from 'lucide-react'
 import { QRCodeSVG } from 'qrcode.react'
 import clsx from 'clsx'
@@ -18,6 +22,8 @@ import { businessesById } from '../data/businesses'
 import { useStore } from '../store/StoreContext'
 import { useAuth } from '../auth/AuthContext'
 import { formatPrice } from '../lib/format'
+import { getReferralCode, getLevel, getLevelName, getLevelProgress } from '../lib/xp'
+import * as db from '../lib/db'
 import Avatar from '../components/Avatar'
 import BusinessCard from '../components/BusinessCard'
 import ReviewCard from '../components/ReviewCard'
@@ -73,25 +79,54 @@ export default function Profile() {
   const { user, configured, signOut } = useAuth()
   const [tab, setTab] = useState<Tab>('reviews')
 
+  // Real backend data
+  const [points, setPoints] = useState(0)
+  const [followerCount, setFollowerCount] = useState(0)
+  const [followingCount, setFollowingCount] = useState(0)
+  const [checkInCount, setCheckInCount] = useState(0)
+  const [copied, setCopied] = useState(false)
+
   const isRealUser = configured && !user.isGuest
+
+  useEffect(() => {
+    if (!isRealUser || !user.id) return
+    const uid = user.id
+    db.getUserPoints(uid).then((r) => setPoints(r.points ?? 0))
+    db.getFollowerCount(uid).then((c) => setFollowerCount(c))
+    db.getFollowingCount(uid).then((c) => setFollowingCount(c))
+    db.getUserCheckInCount(uid).then((c) => setCheckInCount(c))
+  }, [isRealUser, user.id])
+
   const myReviews = allReviews.filter((r) => r.authorId === (isRealUser ? user.id : 'me'))
   const saved = favourites.map((id) => businessesById[id]).filter(Boolean)
+
+  // Level derived from real points for logged-in users
+  const displayPoints = isRealUser ? points : (currentUser.points ?? 0)
+  const level = getLevel(displayPoints)
+  const levelName = getLevelName(level)
+  const { progress, toNext, nextLevelName } = getLevelProgress(displayPoints)
+
   const profile = isRealUser
     ? {
-        level: Math.max(1, Math.floor(myReviews.length / 3) + 1),
-        points: myReviews.length * 200,
         neighbourhood: '',
         joined: 'recently',
         bio: '',
         photoCount: 0,
-        followerCount: 0,
-        followingCount: 0,
       }
     : currentUser
 
-  const band = 2000
-  const toNext = band - (profile.points % band)
-  const progress = ((profile.points % band) / band) * 100
+  const referralCode = isRealUser && user.id ? getReferralCode(user.id) : null
+  const referralUrl = referralCode
+    ? `${window.location.origin}/?ref=${referralCode}`
+    : null
+
+  const copyReferral = useCallback(() => {
+    if (!referralUrl) return
+    navigator.clipboard.writeText(referralUrl).then(() => {
+      setCopied(true)
+      setTimeout(() => setCopied(false), 2000)
+    })
+  }, [referralUrl])
 
   const tabs: { id: Tab; label: string; count: number }[] = [
     { id: 'reviews', label: 'Reviews', count: myReviews.length },
@@ -119,7 +154,7 @@ export default function Profile() {
                 <h1 className="font-display text-2xl font-semibold text-stone-900">
                   {user.name}
                 </h1>
-                <LevelBadge level={profile.level} />
+                <LevelBadge level={level} />
               </div>
               <p className="flex items-center gap-1 text-sm text-stone-500">
                 <MapPin size={13} />
@@ -145,28 +180,66 @@ export default function Profile() {
         {profile.bio && <p className="mt-4 max-w-xl text-stone-600">{profile.bio}</p>}
 
         {/* Stats */}
-        <div className="mt-5 flex items-center gap-6">
+        <div className="mt-5 flex flex-wrap items-center gap-6">
           <Stat value={myReviews.length} label="Reviews" />
-          <Stat value={profile.photoCount} label="Photos" />
-          <Stat value={profile.followerCount} label="Followers" />
-          <Stat value={profile.followingCount} label="Following" />
+          <Stat value={checkInCount} label="Check-ins" />
+          <Stat value={followerCount} label="Followers" />
+          <Stat value={followingCount} label="Following" />
         </div>
 
         {/* Level progress */}
         <div className="mt-5 rounded-2xl border border-stone-200 bg-white p-4">
           <div className="flex items-center justify-between text-sm">
             <span className="flex items-center gap-1.5 font-semibold text-stone-900">
-              <Award size={16} className="text-brand-500" /> Level {profile.level} reviewer
+              <Award size={16} className="text-brand-500" />
+              {levelName} · Level {level}
             </span>
             <span className="text-stone-500">
-              {profile.points.toLocaleString('en-GB')} pts ·{' '}
-              <span className="font-medium text-brand-600">{toNext} to Level {profile.level + 1}</span>
+              {displayPoints.toLocaleString('en-GB')} pts
+              {toNext > 0 && (
+                <>
+                  {' '}·{' '}
+                  <span className="font-medium text-brand-600">{toNext} to {nextLevelName}</span>
+                </>
+              )}
             </span>
           </div>
           <div className="mt-2 h-2 rounded-full bg-stone-100">
-            <div className="h-full rounded-full bg-brand-500" style={{ width: `${progress}%` }} />
+            <div className="h-full rounded-full bg-brand-500 transition-all duration-500" style={{ width: `${progress}%` }} />
           </div>
         </div>
+
+        {/* Referral card */}
+        {referralUrl && (
+          <div className="mt-4 rounded-2xl border border-brand-200 bg-brand-50/50 p-4">
+            <div className="flex items-start justify-between gap-3">
+              <div>
+                <p className="flex items-center gap-1.5 font-semibold text-stone-900">
+                  <Share2 size={15} className="text-brand-500" />
+                  Invite friends, earn XP
+                </p>
+                <p className="mt-0.5 text-sm text-stone-500">
+                  You get <span className="font-medium text-brand-600">100 XP</span> for every friend who signs up with your link.
+                </p>
+              </div>
+              <div className="flex items-center gap-1.5 rounded-xl border border-brand-200 bg-white px-3 py-2">
+                <Users size={14} className="shrink-0 text-brand-500" />
+                <span className="font-mono text-sm font-semibold tracking-wider text-brand-700">{referralCode}</span>
+              </div>
+            </div>
+            <div className="mt-3 flex items-center gap-2 rounded-xl border border-stone-200 bg-white px-3 py-2">
+              <span className="min-w-0 flex-1 truncate text-xs text-stone-500">{referralUrl}</span>
+              <button
+                type="button"
+                onClick={copyReferral}
+                className="flex shrink-0 items-center gap-1 rounded-lg bg-brand-500 px-2.5 py-1.5 text-xs font-semibold text-white transition hover:bg-brand-600"
+              >
+                {copied ? <CheckCheck size={13} /> : <Copy size={13} />}
+                {copied ? 'Copied!' : 'Copy'}
+              </button>
+            </div>
+          </div>
+        )}
 
         {/* Tabs */}
         <div className="mt-6 flex gap-1 border-b border-stone-200">

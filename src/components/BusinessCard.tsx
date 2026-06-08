@@ -14,9 +14,10 @@ interface Props {
   business: Business
   className?: string
   showRank?: boolean
+  distance?: string // e.g. "0.4 km"
 }
 
-export default function BusinessCard({ business: b, className, showRank }: Props) {
+export default function BusinessCard({ business: b, className, showRank, distance }: Props) {
   const { statsFor } = useStore()
   const { rating, reviewCount } = statsFor(b)
   const emoji = categoryMap[b.category].emoji
@@ -75,6 +76,12 @@ export default function BusinessCard({ business: b, className, showRank }: Props
             <MapPin size={13} className="text-stone-400" />
             {b.neighbourhood}
           </span>
+          {distance && (
+            <>
+              <span className="mx-1.5 text-stone-300">·</span>
+              <span className="font-medium text-brand-600">{distance}</span>
+            </>
+          )}
         </p>
 
         <div className="mt-2.5 flex flex-wrap gap-1.5">

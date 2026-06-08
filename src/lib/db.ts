@@ -722,3 +722,256 @@ export async function getBusinessVoucherStats(businessId: string): Promise<{
   const total = prices.reduce((a, b) => a + b, 0)
   return { count: prices.length, avgSpend: total / prices.length, totalRevenue: total }
 }
+
+// --- XP / Points ------------------------------------------------------------
+
+/** Atomically award points to a user and recalculate their level via Supabase RPC. */
+export async function awardPoints(userId: string, amount: number): Promise<void> {
+  if (!backendEnabled) return
+  await client().rpc('award_points', { p_user_id: userId, p_amount: amount })
+}
+
+export async function getUserPoints(userId: string): Promise<{ points: number; level: number }> {
+  const { data } = await client()
+    .from('profiles')
+    .select('points, level')
+    .eq('id', userId)
+    .maybeSingle()
+  return { points: Number(data?.points ?? 0), level: Number(data?.level ?? 1) }
+}
+
+// --- Leaderboard ------------------------------------------------------------
+
+export interface LeaderboardEntry {
+  id: string
+  name: string
+  avatar?: string
+  level: number
+  points: number
+  reviewCount?: number
+}
+
+export async function getLeaderboard(limit = 10): Promise<LeaderboardEntry[]> {
+  if (!backendEnabled) return []
+  const { data } = await client()
+    .from('profiles')
+    .select('id, name, avatar, level, points')
+    .order('points', { ascending: false })
+    .limit(limit)
+  return (data ?? []).map((r) => ({
+    id: r.id,
+    name: r.name,
+    avatar: r.avatar ?? undefined,
+    level: r.level,
+    points: r.points,
+  }))
+}
+
+// --- Check-ins --------------------------------------------------------------
+
+export interface CheckIn {
+  id: string
+  userId: string
+  businessId: string
+  businessName: string
+  createdAt: number
+}
+
+export async function checkIn(userId: string, businessId: string, businessName: string): Promise<void> {
+  const { error } = await client()
+    .from('check_ins')
+    .insert({ user_id: userId, business_id: businessId, business_name: businessName })
+  if (error) throw new Error(error.message)
+}
+
+export async function getCheckIns(userId: string): Promise<CheckIn[]> {
+  const { data, error } = await client()
+    .from('check_ins')
+    .select('*')
+    .eq('user_id', userId)
+    .order('created_at', { ascending: false })
+  if (error) throw new Error(error.message)
+  return (data ?? []).map((r) => ({
+    id: r.id,
+    userId: r.user_id,
+    businessId: r.business_id,
+    businessName: r.business_name,
+    createdAt: new Date(r.created_at).getTime(),
+  }))
+}
+
+export async function getCheckInCount(businessId: string): Promise<number> {
+  if (!backendEnabled) return 0
+  const { count } = await client()
+    .from('check_ins')
+    .select('id', { count: 'exact', head: true })
+    .eq('business_id', businessId)
+  return count ?? 0
+}
+
+export async function getUserCheckInCount(userId: string): Promise<number> {
+  if (!backendEnabled) return 0
+  const { count } = await client()
+    .from('check_ins')
+    .select('id', { count: 'exact', head: true })
+    .eq('user_id', userId)
+  return count ?? 0
+}
+
+export async function hasCheckedInToday(userId: string, businessId: string): Promise<boolean> {
+  if (!backendEnabled) return false
+  const today = new Date().toISOString().slice(0, 10)
+  const { count } = await client()
+    .from('check_ins')
+    .select('id', { count: 'exact', head: true })
+    .eq('user_id', userId)
+    .eq('business_id', businessId)
+    .gte('created_at', `${today}T00:00:00`)
+  return (count ?? 0) > 0
+}
+
+// --- Follows ----------------------------------------------------------------
+
+export async function followUser(followerId: string, followingId: string): Promise<void> {
+  const { error } = await client()
+    .from('follows')
+    .insert({ follower_id: followerId, following_id: followingId })
+  if (error) throw new Error(error.message)
+}
+
+export async function unfollowUser(followerId: string, followingId: string): Promise<void> {
+  const { error } = await client()
+    .from('follows')
+    .delete()
+    .eq('follower_id', followerId)
+    .eq('following_id', followingId)
+  if (error) throw new Error(error.message)
+}
+
+export async function isFollowing(followerId: string, followingId: string): Promise<boolean> {
+  if (!backendEnabled) return false
+  const { count } = await client()
+    .from('follows')
+    .select('*', { count: 'exact', head: true })
+    .eq('follower_id', followerId)
+    .eq('following_id', followingId)
+  return (count ?? 0) > 0
+}
+
+export async function getFollowing(userId: string): Promise<string[]> {
+  const { data } = await client()
+    .from('follows')
+    .select('following_id')
+    .eq('follower_id', userId)
+  return (data ?? []).map((r) => r.following_id as string)
+}
+
+export async function getFollowerCount(userId: string): Promise<number> {
+  if (!backendEnabled) return 0
+  const { count } = await client()
+    .from('follows')
+    .select('*', { count: 'exact', head: true })
+    .eq('following_id', userId)
+  return count ?? 0
+}
+
+export async function getFollowingCount(userId: string): Promise<number> {
+  if (!backendEnabled) return 0
+  const { count } = await client()
+    .from('follows')
+    .select('*', { count: 'exact', head: true })
+    .eq('follower_id', userId)
+  return count ?? 0
+}
+
+// --- Referrals --------------------------------------------------------------
+
+export async function recordReferral(referrerId: string, referredId: string): Promise<void> {
+  if (!backendEnabled) return
+  // Only record once — unique constraint on referred_id
+  const { error } = await client()
+    .from('referrals')
+    .insert({ referrer_id: referrerId, referred_id: referredId })
+  if (error) return // silently ignore duplicates
+  // Award XP to referrer
+  await awardPoints(referrerId, 100)
+}
+
+export async function hasBeenReferred(userId: string): Promise<boolean> {
+  if (!backendEnabled) return false
+  const { count } = await client()
+    .from('referrals')
+    .select('*', { count: 'exact', head: true })
+    .eq('referred_id', userId)
+  return (count ?? 0) > 0
+}
+
+/** Find a user ID by their referral code (first 8 hex chars of UUID, uppercase) */
+export async function findUserByReferralCode(code: string): Promise<string | null> {
+  if (!backendEnabled || code.length !== 8) return null
+  // Referral code = first 8 chars of UUID with dashes removed
+  // UUID format: xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx
+  // Without dashes: xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
+  // First 8 chars match the first 8 chars of the UUID (before first dash)
+  const uuidPrefix = code.toLowerCase()
+  const { data } = await client()
+    .from('profiles')
+    .select('id')
+    .ilike('id', `${uuidPrefix}%`)
+    .limit(1)
+  return (data?.[0]?.id as string) ?? null
+}
+
+// --- Merchant analytics -----------------------------------------------------
+
+export interface MonthlyRevenue {
+  month: string // "Jan", "Feb", etc.
+  revenue: number
+  count: number
+}
+
+export interface DayBookings {
+  day: string // "Mon", "Tue", etc.
+  count: number
+}
+
+export async function getVoucherRevenueTrend(businessId: string): Promise<MonthlyRevenue[]> {
+  if (!backendEnabled) return []
+  const sixMonthsAgo = new Date()
+  sixMonthsAgo.setMonth(sixMonthsAgo.getMonth() - 5)
+  sixMonthsAgo.setDate(1)
+  const { data } = await client()
+    .from('vouchers')
+    .select('deal_price, created_at')
+    .eq('business_id', businessId)
+    .gte('created_at', sixMonthsAgo.toISOString())
+    .order('created_at', { ascending: true })
+  if (!data || data.length === 0) return []
+
+  const byMonth: Record<string, { revenue: number; count: number }> = {}
+  for (const row of data) {
+    const d = new Date(row.created_at as string)
+    const key = d.toLocaleDateString('en-GB', { month: 'short', year: '2-digit' })
+    if (!byMonth[key]) byMonth[key] = { revenue: 0, count: 0 }
+    byMonth[key].revenue += Number(row.deal_price)
+    byMonth[key].count += 1
+  }
+  return Object.entries(byMonth).map(([month, v]) => ({ month, ...v }))
+}
+
+export async function getBookingsByDayOfWeek(businessId: string): Promise<DayBookings[]> {
+  if (!backendEnabled) return []
+  const { data } = await client()
+    .from('bookings')
+    .select('date')
+    .eq('business_id', businessId)
+  if (!data || data.length === 0) return []
+
+  const DAYS = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat']
+  const counts = [0, 0, 0, 0, 0, 0, 0]
+  for (const row of data) {
+    const d = new Date((row.date as string) + 'T12:00:00')
+    counts[d.getDay()]++
+  }
+  return DAYS.map((day, i) => ({ day, count: counts[i] }))
+}

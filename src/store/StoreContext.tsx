@@ -20,6 +20,7 @@ import {
   sendDealReceipt,
   sendBusinessApproved,
 } from '../lib/email'
+import { XP } from '../lib/xp'
 
 const LS_KEY = 'gander.state.v1'
 
@@ -300,6 +301,21 @@ export function StoreProvider({ children }: { children: ReactNode }) {
       } catch (e) {
         logError('hydrate user')(e)
       }
+
+      // Handle referral: if this user arrived via a ref link, record it
+      const storedRef = localStorage.getItem('gander.ref')
+      if (storedRef && storedRef.length === 8) {
+        try {
+          const alreadyReferred = await db.hasBeenReferred(backendUserId)
+          if (!alreadyReferred) {
+            const referrerId = await db.findUserByReferralCode(storedRef)
+            if (referrerId && referrerId !== backendUserId) {
+              await db.recordReferral(referrerId, backendUserId)
+            }
+          }
+        } catch { /* non-fatal */ }
+        localStorage.removeItem('gander.ref')
+      }
     })()
     return () => {
       cancelled = true
@@ -397,6 +413,8 @@ export function StoreProvider({ children }: { children: ReactNode }) {
             body: input.body.slice(0, 100),
             link: '/business/dashboard',
           })
+          // Award XP for posting a review
+          void db.awardPoints(backendUserId, XP.REVIEW)
         }
       } else {
         setUserReviews((prev) => [r, ...prev])
@@ -451,6 +469,8 @@ export function StoreProvider({ children }: { children: ReactNode }) {
           body: `${backendUser.name} · ${input.partySize} people · ${input.date} at ${input.time}`,
           link: '/business/dashboard',
         })
+        // Award XP for making a booking
+        void db.awardPoints(backendUserId, XP.BOOKING)
       }
       return b
     },
@@ -510,6 +530,8 @@ export function StoreProvider({ children }: { children: ReactNode }) {
           body: `${deal.title} · £${deal.dealPrice.toFixed(2)}`,
           link: '/business/dashboard',
         })
+        // Award XP for buying a deal
+        void db.awardPoints(backendUserId, XP.DEAL)
       }
       return v
     },
