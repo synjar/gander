@@ -1,7 +1,7 @@
 import { useState, useMemo, useEffect, type FormEvent } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import { Helmet } from 'react-helmet-async'
-import { Search, Sparkles, Star, TrendingUp, Trophy } from 'lucide-react'
+import { Building2, Search, Sparkles, Star, TrendingUp, Trophy } from 'lucide-react'
 import clsx from 'clsx'
 import { businesses, businessesById } from '../data/businesses'
 import { deals } from '../data/deals'
@@ -184,19 +184,34 @@ export default function Home() {
   const { city } = useCity()
   const { hiddenBusinesses, liveBusinesses, importedBusinesses } = useStore()
   const isLondon = city.id === 'london'
+  // Curated = hand-seeded + approved submissions (not OSM stubs)
+  const curatedBiz = useMemo(
+    () => [...businesses, ...liveBusinesses].filter(
+      (b) => b.cityId === city.id && !hiddenBusinesses.includes(b.id),
+    ),
+    [liveBusinesses, hiddenBusinesses, city.id],
+  )
+  // OSM stubs shown separately
+  const osmCityBiz = useMemo(
+    () => importedBusinesses.filter(
+      (b) => b.cityId === city.id && !hiddenBusinesses.includes(b.id),
+    ),
+    [importedBusinesses, hiddenBusinesses, city.id],
+  )
   const allBiz = useMemo(
     () => [...businesses, ...liveBusinesses, ...importedBusinesses],
     [liveBusinesses, importedBusinesses],
   )
-  const cityBiz = allBiz.filter(
-    (b) => b.cityId === city.id && !hiddenBusinesses.includes(b.id),
+  const cityBiz = useMemo(
+    () => allBiz.filter((b) => b.cityId === city.id && !hiddenBusinesses.includes(b.id)),
+    [allBiz, city.id, hiddenBusinesses],
   )
-  const topRated = [...cityBiz].sort((a, b) => b.rating - a.rating)
+  const topRated = [...curatedBiz].sort((a, b) => b.rating - a.rating)
 
-  const featuredRaw = cityBiz.filter((b) => b.featured)
+  const featuredRaw = curatedBiz.filter((b) => b.featured)
   const picks = featuredRaw.length >= 3 ? featuredRaw : topRated.slice(0, 6)
 
-  const ranked = cityBiz.filter((b) => b.rank).sort((a, b) => (a.rank ?? 99) - (b.rank ?? 99))
+  const ranked = curatedBiz.filter((b) => b.rank).sort((a, b) => (a.rank ?? 99) - (b.rank ?? 99))
   const mustEat = ranked.length ? ranked : topRated.slice(0, 8)
   const cityDeals = deals.filter((d) => businessesById[d.businessId]?.cityId === city.id)
 
@@ -303,6 +318,31 @@ export default function Home() {
           ))}
         </div>
       </Section>
+
+      {osmCityBiz.length > 0 && (
+        <div className="bg-stone-50/80 border-t border-stone-100">
+          <Section
+            title={`More in ${city.name}`}
+            subtitle="Community listings — unverified places sourced from OpenStreetMap"
+            seeAllTo={`/search?source=osm`}
+          >
+            <div className="mb-3 flex items-start gap-2.5 rounded-xl border border-stone-200 bg-white px-4 py-3 text-sm text-stone-500">
+              <Building2 size={16} className="mt-0.5 shrink-0 text-stone-400" />
+              <span>
+                These are basic listings imported from OpenStreetMap — they haven't been verified by Gander.{' '}
+                <Link to="/merchant" className="font-medium text-brand-600 hover:underline">
+                  Own one? Claim your listing →
+                </Link>
+              </span>
+            </div>
+            <Carousel>
+              {osmCityBiz.slice(0, 16).map((b) => (
+                <BusinessCard key={b.id} business={b} className="w-56 shrink-0 snap-start sm:w-64" />
+              ))}
+            </Carousel>
+          </Section>
+        </div>
+      )}
 
       <CommunityStrip />
     </>

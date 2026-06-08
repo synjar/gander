@@ -140,10 +140,13 @@ export default function Search() {
     return map
   }, [userLat, userLng, allBiz])
 
+  const [verifiedOnly, setVerifiedOnly] = useState(false)
+
   const results = useMemo(() => {
     let list = allBiz.filter(
       (b) => b.cityId === city.id && !hiddenBusinesses.includes(b.id) && matchesQuery(b, q),
     )
+    if (verifiedOnly) list = list.filter((b) => b.source !== 'osm' || b.claimed)
     if (category !== 'all') list = list.filter((b) => b.category === category)
     if (neighbourhood !== 'all' && city.neighbourhoods.includes(neighbourhood))
       list = list.filter((b) => b.neighbourhood === neighbourhood)
@@ -221,6 +224,20 @@ export default function Search() {
               <Locate size={15} />
             )}
             <span className="hidden sm:inline">Near me</span>
+          </button>
+          {/* Verified toggle */}
+          <button
+            type="button"
+            onClick={() => setVerifiedOnly((v) => !v)}
+            className={clsx(
+              'flex items-center gap-1.5 rounded-full border px-3 py-2 text-sm font-medium transition',
+              verifiedOnly
+                ? 'border-brand-300 bg-brand-50 text-brand-700'
+                : 'border-stone-200 text-stone-600 hover:bg-stone-50',
+            )}
+            title={verifiedOnly ? 'Showing verified listings only' : 'Show all listings including basic OSM ones'}
+          >
+            <span>{verifiedOnly ? '✓ Verified' : 'All listings'}</span>
           </button>
           <button
             type="button"

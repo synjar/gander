@@ -15,7 +15,7 @@ interface Props {
   business: Business
   className?: string
   showRank?: boolean
-  distance?: string // e.g. "0.4 km"
+  distance?: string
 }
 
 export default function BusinessCard({ business: b, className, showRank, distance }: Props) {
@@ -24,7 +24,76 @@ export default function BusinessCard({ business: b, className, showRank, distanc
   const emoji = categoryMap[b.category].emoji
   const hasDeal = dealsForBusiness(b.id).length > 0
   const openStatus = getOpenStatus(b.hours)
+  const isUnclaimed = b.source === 'osm' && !b.claimed
 
+  if (isUnclaimed) {
+    // ── Unclaimed / basic listing card ────────────────────────────────────────
+    return (
+      <Link
+        to={`/b/${b.slug}`}
+        className={clsx(
+          'group flex flex-col overflow-hidden rounded-2xl border border-dashed border-stone-300 bg-stone-50 transition hover:-translate-y-0.5 hover:border-stone-400 hover:bg-white hover:shadow-md',
+          className,
+        )}
+      >
+        {/* Image — desaturated to signal unverified */}
+        <div className="relative aspect-[4/3] overflow-hidden">
+          <SmartImage
+            src={b.heroImage}
+            seedFallback={b.id}
+            emoji={emoji}
+            className="h-full w-full object-cover opacity-80 grayscale-[30%] transition duration-500 group-hover:opacity-100 group-hover:grayscale-0"
+          />
+          {/* Basic listing badge */}
+          <span className="absolute left-2 top-2 flex items-center gap-1 rounded-full bg-white/90 px-2.5 py-0.5 text-[11px] font-semibold text-stone-500 shadow-sm ring-1 ring-stone-200 backdrop-blur-sm">
+            Basic listing
+          </span>
+        </div>
+
+        <div className="flex flex-1 flex-col p-3.5">
+          <div className="flex items-start justify-between gap-2">
+            <h3 className="font-semibold leading-tight text-stone-700 group-hover:text-brand-600">
+              {b.name}
+            </h3>
+            <span className="shrink-0 text-sm font-medium text-stone-400">
+              {priceLevel(b.priceLevel)}
+            </span>
+          </div>
+
+          <p className="mt-1 text-sm text-stone-400">
+            {b.cuisine && <>{b.cuisine}<span className="mx-1.5 text-stone-300">·</span></>}
+            <span className="inline-flex items-center gap-0.5">
+              <MapPin size={13} className="text-stone-300" />
+              {b.neighbourhood}
+            </span>
+            {distance && (
+              <>
+                <span className="mx-1.5 text-stone-300">·</span>
+                <span className="font-medium text-brand-500">{distance}</span>
+              </>
+            )}
+          </p>
+
+          {reviewCount > 0 && (
+            <div className="mt-1.5 flex items-center gap-1.5">
+              <Stars value={rating} size={13} />
+              <span className="text-xs font-semibold text-stone-500">{rating.toFixed(1)}</span>
+              <span className="text-xs text-stone-400">({reviewCount})</span>
+            </div>
+          )}
+
+          {/* Claim prompt */}
+          <div className="mt-auto pt-3">
+            <span className="text-[11px] font-medium text-brand-500 group-hover:underline">
+              Is this your business? Claim it →
+            </span>
+          </div>
+        </div>
+      </Link>
+    )
+  }
+
+  // ── Fully verified / curated card ──────────────────────────────────────────
   return (
     <Link
       to={`/b/${b.slug}`}
@@ -51,11 +120,6 @@ export default function BusinessCard({ business: b, className, showRank, distanc
         {hasDeal && (
           <span className="absolute bottom-2 left-2 flex items-center gap-1 rounded-full bg-emerald-600 px-2 py-1 text-[11px] font-semibold text-white shadow-sm">
             <Tag size={12} /> Deal
-          </span>
-        )}
-        {b.source === 'osm' && !b.claimed && (
-          <span className="absolute bottom-2 right-2 rounded-full bg-stone-700/80 px-2 py-0.5 text-[10px] font-semibold text-stone-200 backdrop-blur-sm">
-            Unclaimed
           </span>
         )}
       </div>
