@@ -422,40 +422,63 @@ const AMENITY_FILTER =
 const OVERPASS_MIRRORS = [
   'https://overpass-api.de/api/interpreter',
   'https://overpass.kumi.systems/api/interpreter',
+  'https://overpass.private.coffee/api/interpreter',
+  'https://maps.mail.ru/osm/tools/overpass/api/interpreter',
 ]
+
+// HTTP statuses that mean "busy/overloaded, try again" rather than a real failure
+const TRANSIENT_STATUS = new Set([429, 502, 503, 504])
+
+const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms))
 
 async function overpassPost(query: string): Promise<{ elements: OsmElement[] }> {
   let lastErr: Error = new Error('No mirrors available')
+  const RETRIES_PER_MIRROR = 2 // 3 attempts per mirror
+
   for (const url of OVERPASS_MIRRORS) {
-    // Each mirror gets its own AbortController so a timeout on one doesn't
-    // cancel the next attempt.
-    const controller = new AbortController()
-    const timer = window.setTimeout(() => controller.abort(), 130_000)
-    try {
-      const res = await fetch(url, {
-        method: 'POST',
-        body: `data=${encodeURIComponent(query)}`,
-        headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-        signal: controller.signal,
-      })
-      clearTimeout(timer)
-      if (!res.ok) {
-        // Try to surface Overpass's own error message (it sends XML/plain-text)
-        let body = ''
-        try { body = (await res.text()).slice(0, 300) } catch { /* ignore */ }
-        throw new Error(`Overpass HTTP ${res.status}${body ? ` — ${body}` : ''}`)
-      }
-      return await res.json() as { elements: OsmElement[] }
-    } catch (e) {
-      clearTimeout(timer)
-      if (e instanceof DOMException && e.name === 'AbortError') {
-        lastErr = new Error('Overpass request timed out (>130 s) — try a smaller area')
-      } else {
-        lastErr = e instanceof Error ? e : new Error(String(e))
+    for (let attempt = 0; attempt <= RETRIES_PER_MIRROR; attempt++) {
+      // Each attempt gets its own AbortController so a hang doesn't block forever.
+      const controller = new AbortController()
+      const timer = window.setTimeout(() => controller.abort(), 90_000)
+      try {
+        const res = await fetch(url, {
+          method: 'POST',
+          body: `data=${encodeURIComponent(query)}`,
+          headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+          signal: controller.signal,
+        })
+        clearTimeout(timer)
+
+        // Transient overload (gateway timeout / rate limit) — back off and retry
+        // this mirror, then fall through to the next one.
+        if (TRANSIENT_STATUS.has(res.status)) {
+          lastErr = new Error(`Overpass HTTP ${res.status} (server busy)`)
+          if (attempt < RETRIES_PER_MIRROR) {
+            await sleep(1500 * (attempt + 1)) // 1.5s, 3s
+            continue
+          }
+          break // give up on this mirror, try the next
+        }
+
+        if (!res.ok) {
+          let body = ''
+          try { body = (await res.text()).slice(0, 200) } catch { /* ignore */ }
+          throw new Error(`Overpass HTTP ${res.status}${body ? ` — ${body}` : ''}`)
+        }
+        return (await res.json()) as { elements: OsmElement[] }
+      } catch (e) {
+        clearTimeout(timer)
+        if (e instanceof DOMException && e.name === 'AbortError') {
+          lastErr = new Error('Overpass request timed out — the server may be busy, try again')
+          if (attempt < RETRIES_PER_MIRROR) { await sleep(1000 * (attempt + 1)); continue }
+        } else {
+          lastErr = e instanceof Error ? e : new Error(String(e))
+        }
+        break // non-transient error — move to next mirror
       }
     }
   }
-  throw lastErr
+  throw new Error(`${lastErr.message}. All Overpass mirrors are busy — wait a moment and try again (and avoid running the venue and attractions imports at the same time).`)
 }
 
 /**
