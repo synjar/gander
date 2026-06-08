@@ -13,7 +13,8 @@
  * `x-outreach-secret` header, never bundled into the client.
  */
 import { useCallback, useEffect, useMemo, useState } from 'react'
-import { Download, Globe, KeyRound, Loader2, Mail, Phone, RefreshCw, Send, ShieldCheck, Users } from 'lucide-react'
+import { Link } from 'react-router-dom'
+import { Download, Globe, KeyRound, Loader2, Mail, Phone, Printer, RefreshCw, Send, ShieldCheck, Users } from 'lucide-react'
 import clsx from 'clsx'
 
 const SECRET_KEY = 'gander.outreach_secret'
@@ -212,12 +213,21 @@ export default function OutreachPanel() {
             Your call-and-visit worklist for {town}. Build the list, then work each venue by phone, website or in person and tap its status as you go.
           </p>
         </div>
-        <button
-          onClick={() => { sessionStorage.removeItem(SECRET_KEY); setSecret(''); setSecretInput('') }}
-          className="shrink-0 text-xs font-medium text-stone-400 hover:text-stone-600"
-        >
-          Lock
-        </button>
+        <div className="flex shrink-0 items-center gap-3">
+          <Link
+            to="/business/flyer"
+            target="_blank"
+            className="flex items-center gap-1.5 text-xs font-medium text-stone-500 hover:text-brand-600"
+          >
+            <Printer size={13} /> Printable flyer
+          </Link>
+          <button
+            onClick={() => { sessionStorage.removeItem(SECRET_KEY); setSecret(''); setSecretInput('') }}
+            className="text-xs font-medium text-stone-400 hover:text-stone-600"
+          >
+            Lock
+          </button>
+        </div>
       </div>
 
       {/* Controls */}

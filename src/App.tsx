@@ -12,6 +12,7 @@ import Profile from './pages/Profile'
 import BusinessLanding from './pages/BusinessLanding'
 import MerchantDashboard from './pages/MerchantDashboard'
 import BusinessOnboarding from './pages/BusinessOnboarding'
+import BusinessFlyer from './pages/BusinessFlyer'
 import Redeem from './pages/Redeem'
 import StaffScanner from './pages/StaffScanner'
 import StripeConnectCallback from './pages/StripeConnectCallback'
@@ -32,6 +33,7 @@ const router = createBrowserRouter([
       { path: 'me', element: <Profile /> },
       { path: 'business', element: <BusinessLanding /> },
       { path: 'business/join', element: <BusinessOnboarding /> },
+      { path: 'business/flyer', element: <BusinessFlyer /> },
       { path: 'redeem/:code', element: <Redeem /> },
       { path: 'staff/scan', element: <StaffScanner /> },
       { path: 'business/stripe-connect', element: <StripeConnectCallback /> },
