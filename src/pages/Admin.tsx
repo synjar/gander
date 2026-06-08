@@ -26,7 +26,7 @@ import { businesses, businessesById } from '../data/businesses'
 import { cities } from '../data/cities'
 import { categories, categoryMap } from '../data/categories'
 import { useStore } from '../store/StoreContext'
-import { fetchOSMAttractions, fetchOSMVenues, type OsmVenue } from '../lib/overpass'
+import { fetchOSMAttractions, fetchOSMVenues, resolveParentCity, type OsmVenue } from '../lib/overpass'
 import { generateReviews } from '../lib/seedReviewGen'
 import * as db from '../lib/db'
 import { formatPrice, priceLevel } from '../lib/format'
@@ -91,9 +91,19 @@ function ChartCard({
 
 // ─── OSM Import panel ─────────────────────────────────────────────────────────
 
-const OSM_CITIES = cities.filter((c) =>
-  ['west-sussex', 'london', 'manchester', 'birmingham'].includes(c.id),
-)
+// Importable OSM areas. West Sussex towns are listed under the county so a
+// single import covers a town thoroughly instead of being diluted county-wide.
+const OSM_AREAS: { id: string; name: string }[] = [
+  { id: 'west-sussex', name: 'West Sussex (whole county)' },
+  { id: 'worthing', name: '— Worthing' },
+  { id: 'chichester', name: '— Chichester' },
+  { id: 'crawley', name: '— Crawley' },
+  { id: 'horsham', name: '— Horsham' },
+  { id: 'arun', name: '— Arun (Bognor Regis & Littlehampton)' },
+  { id: 'london', name: 'London' },
+  { id: 'manchester', name: 'Manchester' },
+  { id: 'birmingham', name: 'Birmingham' },
+]
 
 function ImportPanel() {
   const { importBusinesses } = useStore()
@@ -116,7 +126,7 @@ function ImportPanel() {
     try {
       const [{ venues: fetched, error }, existIds] = await Promise.all([
         fetchOSMVenues(cityId, 500),
-        db.getImportedOsmIds(cityId),
+        db.getImportedOsmIds(resolveParentCity(cityId).cityId),
       ])
       if (error) { setFetchError(error); setFetchState('idle'); return }
       setVenues(fetched)
@@ -137,7 +147,7 @@ function ImportPanel() {
     try {
       const result = await importBusinesses(toImport)
       setImportResult(result)
-      const existIds = await db.getImportedOsmIds(cityId)
+      const existIds = await db.getImportedOsmIds(resolveParentCity(cityId).cityId)
       setExistingIds(existIds)
       setSelected(new Set())
     } catch (e) {
@@ -190,7 +200,7 @@ function ImportPanel() {
             onChange={(e) => { setCityId(e.target.value); setVenues([]); setFetchState('idle') }}
             className="rounded-xl border border-stone-200 px-3 py-2 text-sm outline-none focus:border-brand-400"
           >
-            {OSM_CITIES.map((c) => (
+            {OSM_AREAS.map((c) => (
               <option key={c.id} value={c.id}>{c.name}</option>
             ))}
           </select>
@@ -359,7 +369,7 @@ function AttractionsPanel() {
     try {
       const [{ venues: fetched, error }, existIds] = await Promise.all([
         fetchOSMAttractions(cityId, 300, (done, total) => setFetchProgress({ done, total })),
-        db.getImportedOsmIds(cityId),
+        db.getImportedOsmIds(resolveParentCity(cityId).cityId),
       ])
       setFetchProgress(null)
       if (error) { setFetchError(error); setFetchState('idle'); return }
@@ -381,7 +391,7 @@ function AttractionsPanel() {
     try {
       const result = await importBusinesses(toImport)
       setImportResult(result)
-      const existIds = await db.getImportedOsmIds(cityId)
+      const existIds = await db.getImportedOsmIds(resolveParentCity(cityId).cityId)
       setExistingIds(existIds)
       setSelected(new Set())
     } catch (e) {
@@ -429,7 +439,7 @@ function AttractionsPanel() {
             onChange={(e) => { setCityId(e.target.value); setVenues([]); setFetchState('idle') }}
             className="rounded-xl border border-stone-200 px-3 py-2 text-sm outline-none focus:border-teal-400"
           >
-            {OSM_CITIES.map((c) => (
+            {OSM_AREAS.map((c) => (
               <option key={c.id} value={c.id}>{c.name}</option>
             ))}
           </select>

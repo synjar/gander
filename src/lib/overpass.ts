@@ -382,6 +382,37 @@ const AREA_QUERIES: Record<string, string> = {
   'birmingham':   'area["name"="Birmingham"]["admin_level"="8"]->.a',
   'bournemouth':  'area["name"="Bournemouth"]["admin_level"="8"]->.a',
   'southampton':  'area["name"="Southampton"]["admin_level"="8"]->.a',
+  // West Sussex towns — narrower areas so a single import covers the town
+  // thoroughly instead of being diluted across the whole county.
+  'worthing':      'area["name"="Worthing"]["admin_level"="8"]->.a',
+  'chichester':    'area["name"="Chichester"]["admin_level"="8"]->.a',
+  'crawley':       'area["name"="Crawley"]["admin_level"="8"]->.a',
+  'horsham':       'area["name"="Horsham"]["admin_level"="8"]->.a',
+  'arun':          'area["name"="Arun"]["admin_level"="8"]->.a', // Bognor Regis + Littlehampton
+}
+
+/**
+ * Some importable areas are towns that belong to a parent city in the app's
+ * city model (e.g. Worthing → West Sussex). Imported venues are stored under
+ * the parent so they show in the right city view; outreach still filters by
+ * the venue's own neighbourhood/address.
+ */
+const AREA_PARENT: Record<string, { cityId: string; cityName: string }> = {
+  worthing:   { cityId: 'west-sussex', cityName: 'West Sussex' },
+  chichester: { cityId: 'west-sussex', cityName: 'West Sussex' },
+  crawley:    { cityId: 'west-sussex', cityName: 'West Sussex' },
+  horsham:    { cityId: 'west-sussex', cityName: 'West Sussex' },
+  arun:       { cityId: 'west-sussex', cityName: 'West Sussex' },
+}
+
+/** Resolve an import-area key to the city it should be stored under. */
+export function resolveParentCity(areaKey: string): { cityId: string; cityName: string } {
+  return (
+    AREA_PARENT[areaKey] ?? {
+      cityId: areaKey,
+      cityName: areaKey === 'west-sussex' ? 'West Sussex' : capitalise(areaKey),
+    }
+  )
 }
 
 // Note: no extra quotes around this — it gets interpolated as [amenity~"..."]
@@ -456,6 +487,7 @@ out center tags ${limit};
   }
 
   const venues: OsmVenue[] = []
+  const parent = resolveParentCity(cityId)
 
   for (const el of data.elements) {
     const t = el.tags ?? {}
@@ -500,8 +532,8 @@ out center tags ${limit};
       tags:             parseTags(t),
       priceLevel,
       neighbourhood:    nb,
-      city:             cityId === 'west-sussex' ? 'West Sussex' : cityId,
-      cityId,
+      city:             parent.cityName,
+      cityId:           parent.cityId,
       address:          address(t),
       postcode:         t['addr:postcode'] ?? '',
       phone:            t.phone ?? t['contact:phone'] ?? '',
@@ -576,6 +608,7 @@ export async function fetchOSMAttractions(
   // Cap total results
   const venues: OsmVenue[] = []
   const seenIds = new Set<string>()
+  const parent = resolveParentCity(cityId)
 
   for (const el of allElements.slice(0, limit)) {
     const t = el.tags ?? {}
@@ -623,8 +656,8 @@ export async function fetchOSMAttractions(
       freeEntry,
       priceLevel:       1,
       neighbourhood:    nb,
-      city:             cityId === 'west-sussex' ? 'West Sussex' : cityId,
-      cityId,
+      city:             parent.cityName,
+      cityId:           parent.cityId,
       address:          address(t),
       postcode:         t['addr:postcode'] ?? '',
       phone:            t.phone ?? t['contact:phone'] ?? '',
