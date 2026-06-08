@@ -116,8 +116,9 @@ export default function Profile() {
     : currentUser
 
   const referralCode = isRealUser && user.id ? getReferralCode(user.id) : null
+  const appOrigin = (import.meta.env.VITE_APP_URL as string | undefined)?.replace(/\/$/, '') || window.location.origin
   const referralUrl = referralCode
-    ? `${window.location.origin}/?ref=${referralCode}`
+    ? `${appOrigin}/?ref=${referralCode}`
     : null
 
   const copyReferral = useCallback(() => {
@@ -403,7 +404,7 @@ export default function Profile() {
                       {!v.redeemed && (
                         <div className="shrink-0 rounded-xl bg-white p-1.5 shadow-sm">
                           <QRCodeSVG
-                            value={`${window.location.origin}/redeem/${v.code}`}
+                            value={`${appOrigin}/redeem/${v.code}`}
                             size={72}
                             fgColor="#1c1917"
                           />
