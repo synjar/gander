@@ -11,7 +11,6 @@ import { useStore } from '../store/StoreContext'
 import { priceLevel } from '../lib/format'
 import { distanceKm, formatDistance } from '../lib/xp'
 import BusinessCard from '../components/BusinessCard'
-import MapView from '../components/MapView'
 
 type SortKey = 'recommended' | 'rating' | 'reviews' | 'price-asc' | 'price-desc' | 'nearby'
 
@@ -41,27 +40,6 @@ function matchesQuery(b: Business, q: string): boolean {
     .every((word) => hay.includes(word))
 }
 
-function MapPanel({ results }: { results: Business[] }) {
-  const { city } = useCity()
-  return (
-    <div className="sticky top-24 hidden h-[calc(100vh-7rem)] overflow-hidden rounded-2xl ring-1 ring-stone-200 lg:block">
-      <MapView
-        points={results.map((b) => ({
-          id: b.id,
-          name: b.name,
-          lat: b.lat,
-          lng: b.lng,
-          slug: b.slug,
-          rating: b.rating,
-          neighbourhood: b.neighbourhood,
-        }))}
-        center={[city.lat, city.lng]}
-        zoom={city.zoom}
-        className="h-full w-full"
-      />
-    </div>
-  )
-}
 
 export default function Search() {
   const [params, setParams] = useSearchParams()
@@ -367,9 +345,8 @@ export default function Search() {
         )}
       </div>
 
-      {/* Results + map */}
-      <div className="mt-6 grid gap-6 lg:grid-cols-[1fr_22rem]">
-        <div>
+      {/* Results */}
+      <div className="mt-6">
           {results.length === 0 ? (
             <div className="rounded-2xl border border-dashed border-stone-300 py-20 text-center">
               <MapPin className="mx-auto text-stone-300" size={40} />
@@ -392,8 +369,6 @@ export default function Search() {
               })}
             </div>
           )}
-        </div>
-        <MapPanel results={results} />
       </div>
     </div>
   )

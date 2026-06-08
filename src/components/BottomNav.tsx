@@ -1,10 +1,11 @@
 import { NavLink } from 'react-router-dom'
-import { Compass, Newspaper, Search, Tag, User } from 'lucide-react'
+import { Compass, Map, Newspaper, Search, Tag, User } from 'lucide-react'
 import clsx from 'clsx'
 
 const tabs = [
   { to: '/', label: 'Discover', icon: Compass, end: true },
   { to: '/search', label: 'Search', icon: Search },
+  { to: '/map', label: 'Map', icon: Map },
   { to: '/deals', label: 'Deals', icon: Tag },
   { to: '/feed', label: 'Feed', icon: Newspaper },
   { to: '/me', label: 'Me', icon: User },

@@ -76,6 +76,7 @@ function SearchBar({ compact }: { compact?: boolean }) {
 
 const navItems = [
   { to: '/', label: 'Discover', end: true },
+  { to: '/map', label: 'Map' },
   { to: '/deals', label: 'Deals' },
   { to: '/feed', label: 'Feed' },
 ]

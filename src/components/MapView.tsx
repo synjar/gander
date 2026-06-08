@@ -25,17 +25,34 @@ function pin(label?: string): L.DivIcon {
   })
 }
 
+function userPin(): L.DivIcon {
+  return L.divIcon({
+    className: 'gander-user-pin',
+    html: `<div style="width:16px;height:16px;background:#2563eb;border:3px solid #fff;border-radius:50%;box-shadow:0 0 0 3px rgba(37,99,235,.25),0 1px 4px rgba(0,0,0,.4)"></div>`,
+    iconSize: [16, 16],
+    iconAnchor: [8, 8],
+    popupAnchor: [0, -10],
+  })
+}
+
 function Recenter({
   points,
   center,
   zoom,
+  userLocation,
 }: {
   points: MapPoint[]
   center?: [number, number]
   zoom: number
+  userLocation?: [number, number]
 }) {
   const map = useMap()
   useEffect(() => {
+    // If we know where the user is, start there.
+    if (userLocation) {
+      map.setView(userLocation, Math.max(zoom, 14))
+      return
+    }
     if (points.length === 0) {
       if (center) map.setView(center, zoom)
       return
@@ -46,7 +63,7 @@ function Recenter({
     }
     const bounds = L.latLngBounds(points.map((p) => [p.lat, p.lng] as [number, number]))
     map.fitBounds(bounds, { padding: [40, 40], maxZoom: 15 })
-  }, [points, center, zoom, map])
+  }, [points, center, zoom, map, userLocation])
   return null
 }
 
@@ -56,12 +73,16 @@ interface Props {
   interactive?: boolean
   zoom?: number
   center?: [number, number]
+  /** When provided, the map starts here with a "you are here" marker. */
+  userLocation?: [number, number]
 }
 
-export default function MapView({ points, className, interactive = true, zoom = 13, center }: Props) {
-  const initialCenter: [number, number] = points[0]
-    ? [points[0].lat, points[0].lng]
-    : center ?? [51.5074, -0.1278]
+export default function MapView({ points, className, interactive = true, zoom = 13, center, userLocation }: Props) {
+  const initialCenter: [number, number] = userLocation
+    ? userLocation
+    : points[0]
+      ? [points[0].lat, points[0].lng]
+      : center ?? [51.5074, -0.1278]
 
   return (
     <MapContainer
@@ -93,7 +114,12 @@ export default function MapView({ points, className, interactive = true, zoom = 
           )}
         </Marker>
       ))}
-      <Recenter points={points} center={center} zoom={zoom} />
+      {userLocation && (
+        <Marker position={userLocation} icon={userPin()}>
+          <Popup>You are here</Popup>
+        </Marker>
+      )}
+      <Recenter points={points} center={center} zoom={zoom} userLocation={userLocation} />
     </MapContainer>
   )
 }

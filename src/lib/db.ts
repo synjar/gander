@@ -900,10 +900,12 @@ export interface CheckIn {
   createdAt: number
 }
 
-export async function checkIn(userId: string, businessId: string, businessName: string): Promise<void> {
+export async function checkIn(userId: string, businessId: string, _businessName?: string): Promise<void> {
+  // Note: the check_ins table has no business_name column — the venue name is
+  // looked up from business_id when needed, so we don't store it here.
   const { error } = await client()
     .from('check_ins')
-    .insert({ user_id: userId, business_id: businessId, business_name: businessName })
+    .insert({ user_id: userId, business_id: businessId })
   if (error) throw new Error(error.message)
 }
 

@@ -4,6 +4,7 @@ import { HelmetProvider } from 'react-helmet-async'
 import Layout from './components/Layout'
 import Home from './pages/Home'
 import Search from './pages/Search'
+import MapPage from './pages/MapPage'
 import BusinessDetail from './pages/BusinessDetail'
 import Deals from './pages/Deals'
 import DealDetail from './pages/DealDetail'
@@ -26,6 +27,7 @@ const router = createBrowserRouter([
     children: [
       { index: true, element: <Home /> },
       { path: 'search', element: <Search /> },
+      { path: 'map', element: <MapPage /> },
       { path: 'b/:slug', element: <BusinessDetail /> },
       { path: 'deals', element: <Deals /> },
       { path: 'deals/:id', element: <DealDetail /> },
