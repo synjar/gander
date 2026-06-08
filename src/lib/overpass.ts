@@ -573,12 +573,10 @@ export async function fetchOSMAttractions(
   }
 
   // Cap total results
-  const elements = allElements.slice(0, limit)
-
   const venues: OsmVenue[] = []
   const seenIds = new Set<string>()
 
-  for (const el of data.elements) {
+  for (const el of allElements.slice(0, limit)) {
     const t = el.tags ?? {}
     const name = t.name
     if (!name) continue
