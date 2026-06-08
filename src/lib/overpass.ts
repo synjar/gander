@@ -169,8 +169,32 @@ const AREA_QUERIES: Record<string, string> = {
   'southampton':  'area["name"="Southampton"]["admin_level"="8"]->.a',
 }
 
+// Note: no extra quotes around this — it gets interpolated as [amenity~"..."]
 const AMENITY_FILTER =
-  'amenity~"^(restaurant|cafe|bar|pub|fast_food|hairdresser|beauty|gym|fitness_centre|spa|hotel)$"'
+  `amenity~"^(restaurant|cafe|bar|pub|fast_food|hairdresser|beauty|gym|fitness_centre|spa|hotel)$"`
+
+const OVERPASS_MIRRORS = [
+  'https://overpass-api.de/api/interpreter',
+  'https://overpass.kumi.systems/api/interpreter',
+]
+
+async function overpassPost(query: string): Promise<{ elements: OsmElement[] }> {
+  let lastErr: Error = new Error('No mirrors available')
+  for (const url of OVERPASS_MIRRORS) {
+    try {
+      const res = await fetch(url, {
+        method: 'POST',
+        body: `data=${encodeURIComponent(query)}`,
+        headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+      })
+      if (!res.ok) throw new Error(`Overpass returned HTTP ${res.status}`)
+      return await res.json() as { elements: OsmElement[] }
+    } catch (e) {
+      lastErr = e instanceof Error ? e : new Error(String(e))
+    }
+  }
+  throw lastErr
+}
 
 /**
  * Query Overpass for all named amenity venues within a city area.
@@ -184,26 +208,18 @@ export async function fetchOSMVenues(
   if (!areaQuery) return { venues: [], error: `No Overpass query defined for city: ${cityId}` }
 
   const query = `
-[out:json][timeout:30];
+[out:json][timeout:60];
 ${areaQuery};
 (
-  node["${AMENITY_FILTER}"]["name"](area.a);
-  way["${AMENITY_FILTER}"]["name"](area.a);
+  node[${AMENITY_FILTER}]["name"](area.a);
+  way[${AMENITY_FILTER}]["name"](area.a);
 );
 out center tags ${limit};
 `.trim()
 
-  const url = 'https://overpass-api.de/api/interpreter'
   let data: { elements: OsmElement[] }
-
   try {
-    const res = await fetch(url, {
-      method: 'POST',
-      body: `data=${encodeURIComponent(query)}`,
-      headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-    })
-    if (!res.ok) throw new Error(`Overpass returned ${res.status}`)
-    data = await res.json()
+    data = await overpassPost(query)
   } catch (e) {
     return { venues: [], error: e instanceof Error ? e.message : String(e) }
   }
