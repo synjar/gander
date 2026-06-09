@@ -17,8 +17,8 @@ import {
 } from 'lucide-react'
 import { QRCodeSVG } from 'qrcode.react'
 import clsx from 'clsx'
+import type { Business } from '../data/types'
 import { currentUser } from '../data/users'
-import { businessesById } from '../data/businesses'
 import { useStore } from '../store/StoreContext'
 import { useAuth } from '../auth/AuthContext'
 import { formatPrice } from '../lib/format'
@@ -76,7 +76,7 @@ function EmptyState({
 }
 
 export default function Profile() {
-  const { allReviews, favourites, bookings, vouchers, cancelBooking } = useStore()
+  const { allReviews, favourites, bookings, vouchers, cancelBooking, businessById } = useStore()
   const { user, configured, signOut } = useAuth()
   const [tab, setTab] = useState<Tab>('reviews')
 
@@ -105,7 +105,7 @@ export default function Profile() {
   }, [isRealUser, user.id])
 
   const myReviews = allReviews.filter((r) => r.authorId === (isRealUser ? user.id : 'me'))
-  const saved = favourites.map((id) => businessesById[id]).filter(Boolean)
+  const saved = favourites.map((id) => businessById(id)).filter((b): b is Business => Boolean(b))
 
   // Level derived from real points for logged-in users
   const displayPoints = isRealUser ? points : (currentUser.points ?? 0)
@@ -314,7 +314,7 @@ export default function Profile() {
             ) : (
               <div className="divide-y divide-stone-100">
                 {myReviews.map((r) => {
-                  const biz = businessesById[r.businessId]
+                  const biz = businessById(r.businessId)
                   return (
                     <div key={r.id} className="pt-2 first:pt-0">
                       {biz && (
@@ -361,7 +361,7 @@ export default function Profile() {
             ) : (
               <div className="space-y-3">
                 {bookings.map((bk) => {
-                  const biz = businessesById[bk.businessId]
+                  const biz = businessById(bk.businessId)
                   return (
                     <div
                       key={bk.id}

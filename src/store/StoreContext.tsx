@@ -8,6 +8,7 @@ import {
   type ReactNode,
 } from 'react'
 import type { Booking, Business, BusinessSubmission, Deal, Order, Review, Voucher } from '../data/types'
+import { businesses } from '../data/businesses'
 import { seedReviews } from '../data/reviews'
 import { deals as seedDeals } from '../data/deals'
 import { currentUser } from '../data/users'
@@ -136,6 +137,8 @@ interface StoreValue extends Persisted {
   toggleBusinessHidden: (id: string) => void
   liveBusinesses: Business[]
   ownedBusinesses: Business[]
+  /** Resolve a business by id across seed, live (approved) and imported sources. */
+  businessById: (id: string) => Business | undefined
   submissions: BusinessSubmission[]
   approveSubmission: (id: string) => Promise<void>
   rejectSubmission: (id: string, note?: string) => Promise<void>
@@ -360,6 +363,18 @@ export function StoreProvider({ children }: { children: ReactNode }) {
     [backendReviews, userReviews],
   )
   const allDeals = useMemo(() => [...merchantDeals, ...seedDeals], [merchantDeals])
+
+  // Combined business lookup across seed, live (approved) and imported venues.
+  // Use this everywhere instead of the seed-only businessesById so claimed and
+  // imported venues resolve correctly (favourites, reviews, bookings, deals…).
+  const businessIndex = useMemo(() => {
+    const m = new Map<string, Business>()
+    for (const b of businesses) m.set(b.id, b)
+    for (const b of liveBusinesses) m.set(b.id, b)
+    for (const b of importedBusinesses) m.set(b.id, b)
+    return m
+  }, [liveBusinesses, importedBusinesses])
+  const businessById = useCallback((id: string) => businessIndex.get(id), [businessIndex])
 
   const reviewsFor = useCallback(
     (businessId: string) =>
@@ -724,6 +739,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
     toggleBusinessHidden,
     liveBusinesses,
     ownedBusinesses: liveBusinesses.filter((b) => backendUserId && b.ownerId === backendUserId),
+    businessById,
     submissions,
     approveSubmission,
     rejectSubmission,

@@ -22,7 +22,7 @@ import {
   X,
 } from 'lucide-react'
 import clsx from 'clsx'
-import { businesses, businessesById } from '../data/businesses'
+import { businesses } from '../data/businesses'
 import { cities } from '../data/cities'
 import { categories, categoryMap } from '../data/categories'
 import { useStore } from '../store/StoreContext'
@@ -702,6 +702,7 @@ export default function Admin() {
     toggleBusinessHidden,
     approveSubmission,
     rejectSubmission,
+    businessById,
   } = useStore()
 
   const [subTab, setSubTab] = useState<'pending' | 'approved' | 'rejected'>('pending')
@@ -805,7 +806,7 @@ export default function Admin() {
           <div className="mt-2 divide-y divide-stone-100">
             {recentReviews.map((r) => {
               const hidden = isReviewHidden(r.id)
-              const biz = businessesById[r.businessId]
+              const biz = businessById(r.businessId)
               return (
                 <div key={r.id} className={clsx('flex gap-3 py-3', hidden && 'opacity-50')}>
                   <Avatar name={r.authorName} src={r.authorAvatar} size={36} />

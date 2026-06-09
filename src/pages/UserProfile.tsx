@@ -3,7 +3,6 @@ import { useParams, Link } from 'react-router-dom'
 import { Helmet } from 'react-helmet-async'
 import { MapPin, Star, Users } from 'lucide-react'
 import { users } from '../data/users'
-import { businessesById } from '../data/businesses'
 import { useStore } from '../store/StoreContext'
 import { useAuth } from '../auth/AuthContext'
 import * as db from '../lib/db'
@@ -25,7 +24,7 @@ function Stat({ value, label }: { value: number | string; label: string }) {
 
 export default function UserProfile() {
   const { userId } = useParams<{ userId: string }>()
-  const { allReviews } = useStore()
+  const { allReviews, businessById } = useStore()
   const { user: me, configured } = useAuth()
   const isMe = configured && !me.isGuest && me.id === userId
 
@@ -158,7 +157,7 @@ export default function UserProfile() {
           ) : (
             <div className="mt-4 divide-y divide-stone-100">
               {theirReviews.map((r) => {
-                const biz = businessesById[r.businessId]
+                const biz = businessById(r.businessId)
                 return (
                   <div key={r.id} className="pt-2 first:pt-0">
                     {biz && (
