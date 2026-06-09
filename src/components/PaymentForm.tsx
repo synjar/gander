@@ -8,8 +8,6 @@ import * as db from '../lib/db'
 const PK = import.meta.env.VITE_STRIPE_PUBLISHABLE_KEY as string | undefined
 const stripePromise = PK ? loadStripe(PK) : null
 
-const PLATFORM_FEE_RATE = 0.15
-
 interface Props {
   amount: number
   businessId?: string
@@ -158,6 +156,7 @@ export default function PaymentForm({ amount, businessId, onPaid, onCancel }: Pr
   const [clientSecret, setClientSecret] = useState<string | null>(null)
   const [fetchError, setFetchError] = useState<string | null>(null)
   const [stripeAccountId, setStripeAccountId] = useState<string | null>(null)
+  const [feeRate, setFeeRate] = useState(0.12)
 
   useEffect(() => {
     if (!stripePromise) return
@@ -170,10 +169,11 @@ export default function PaymentForm({ amount, businessId, onPaid, onCancel }: Pr
       const res = await fetch('/api/create-payment-intent', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ amount, stripeAccountId: accountId ?? undefined }),
+        body: JSON.stringify({ amount, stripeAccountId: accountId ?? undefined, businessId }),
       })
-      const json = await res.json() as { clientSecret?: string; error?: string }
+      const json = await res.json() as { clientSecret?: string; error?: string; feeRate?: number }
       if (json.error) { setFetchError(json.error); return }
+      if (typeof json.feeRate === 'number') setFeeRate(json.feeRate)
       if (json.clientSecret) setClientSecret(json.clientSecret)
     }
 
@@ -191,14 +191,17 @@ export default function PaymentForm({ amount, businessId, onPaid, onCancel }: Pr
     </div>
   )
 
-  const merchantPayout = stripeAccountId ? amount * (1 - PLATFORM_FEE_RATE) : null
+  const merchantPayout = stripeAccountId ? amount * (1 - feeRate) : null
 
   return (
     <div className="space-y-3">
       {merchantPayout !== null && (
         <div className="flex items-center justify-between rounded-xl border border-emerald-200 bg-emerald-50 px-3 py-2 text-xs">
           <span className="text-emerald-700">Merchant receives</span>
-          <span className="font-semibold text-emerald-800">{formatPrice(merchantPayout)} (after 15% platform fee)</span>
+          <span className="font-semibold text-emerald-800">
+            {formatPrice(merchantPayout)}{' '}
+            {feeRate === 0 ? '(commission-free first month)' : `(after ${Math.round(feeRate * 100)}% platform fee)`}
+          </span>
         </div>
       )}
       <Elements stripe={stripePromise} options={{ clientSecret, appearance: { theme: 'stripe' } }}>

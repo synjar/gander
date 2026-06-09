@@ -168,3 +168,8 @@ returns integer language sql security definer set search_path = public as $$
   where business_id = p_business_id and date = p_date and status = 'confirmed';
 $$;
 grant execute on function public.bookings_count_on_date(text, date) to anon, authenticated;
+
+-- 7) Commission model: free first month, then 12% ----------------------------
+-- Stamp when a venue was claimed so the payment API can give the owner a
+-- commission-free first month before the 12% platform fee kicks in.
+alter table public.imported_businesses add column if not exists claimed_at timestamptz;

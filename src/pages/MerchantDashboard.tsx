@@ -1385,7 +1385,7 @@ function StripeConnectPanel({ businessId }: { businessId: string }) {
         <>
           <p className="mt-1 text-xs text-stone-500">
             Connect Stripe to receive automatic payouts when customers buy your deals.
-            Gander keeps a <span className="font-semibold">15% platform fee</span> — the rest goes to your bank account.
+            Your first month is free; after that Gander keeps a <span className="font-semibold">12% fee</span> — the rest goes to your bank account.
           </p>
           {!configured && (
             <p className="mt-2 text-xs text-amber-600">Connect Supabase to enable payouts.</p>

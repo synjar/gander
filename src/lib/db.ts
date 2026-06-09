@@ -1307,11 +1307,12 @@ export async function getImportedOsmIds(cityId: string): Promise<Set<string>> {
   return new Set((data ?? []).map((r) => r.osm_id as string))
 }
 
-/** Mark an imported listing as claimed by a user. */
+/** Mark an imported listing as claimed by a user. Stamps claimed_at so the
+ *  commission-free first month can be calculated at payment time. */
 export async function claimBusiness(businessId: string, userId: string): Promise<void> {
   const { error } = await client()
     .from('imported_businesses')
-    .update({ claimed: true, claimed_by: userId })
+    .update({ claimed: true, claimed_by: userId, claimed_at: new Date().toISOString() })
     .eq('id', businessId)
   if (error) throw new Error(error.message)
 }

@@ -218,10 +218,10 @@ export default function BusinessLanding() {
           <div>
             <h2 className="font-display text-3xl font-semibold text-stone-900">Simple, fair pricing</h2>
             <p className="mt-2 text-stone-600">
-              Free to list and manage your page. We only earn <strong>15% when we actually sell a voucher</strong> for you — nothing on bookings, no monthly fee, no setup cost.
+              Free to list and manage your page. Your <strong>first month is commission-free</strong> — after that we take just <strong>12%</strong> when we actually sell a voucher for you. Nothing on bookings, no monthly fee, no setup cost.
             </p>
             <div className="mt-4 inline-flex items-center gap-2 rounded-full bg-emerald-50 px-3 py-1.5 text-sm font-semibold text-emerald-700">
-              <Sparkles size={14} /> Founding offer: 0% commission for your first 3 months
+              <Sparkles size={14} /> Your first month is completely commission-free
             </div>
           </div>
           <ul className="space-y-2.5">

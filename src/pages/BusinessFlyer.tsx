@@ -84,7 +84,7 @@ export default function BusinessFlyer() {
           </div>
 
           <div className="mt-5 inline-flex items-center gap-1.5 rounded-full bg-emerald-50 px-3 py-1.5 text-xs font-semibold text-emerald-700">
-            <Sparkles size={13} /> Founding partners: 0% commission for 3 months
+            <Sparkles size={13} /> Free for your first month, then just 12%
           </div>
 
           <div className="mt-5 border-t border-stone-100 pt-4 text-center text-sm">
