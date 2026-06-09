@@ -5,7 +5,6 @@ import { Building2, Landmark, Search, Sparkles, Star, TrendingUp, Trophy } from 
 import clsx from 'clsx'
 import type { Business } from '../data/types'
 import { businesses, businessesById } from '../data/businesses'
-import { deals } from '../data/deals'
 import { categories } from '../data/categories'
 import { cities } from '../data/cities'
 import { seedFeed } from '../data/feed'
@@ -190,7 +189,7 @@ function CommunityStrip() {
 
 export default function Home() {
   const { city } = useCity()
-  const { hiddenBusinesses, liveBusinesses, importedBusinesses, profileHeroImages } = useStore()
+  const { hiddenBusinesses, liveBusinesses, importedBusinesses, profileHeroImages, allDeals } = useStore()
   const isLondon = city.id === 'london'
 
   // Apply merchant hero-image overrides so cards reflect the uploaded thumbnail
@@ -241,7 +240,12 @@ export default function Home() {
 
   const ranked = curatedBiz.filter((b) => b.rank).sort((a, b) => (a.rank ?? 99) - (b.rank ?? 99))
   const mustEat = ranked.length ? ranked : topRated.slice(0, 8)
-  const cityDeals = deals.filter((d) => businessesById[d.businessId]?.cityId === city.id)
+  // Merchant-created deals (from the store) + seed deals, scoped to this city.
+  // Resolve the venue across seed/live/imported so deals on claimed venues show.
+  const cityDeals = useMemo(() => {
+    const cityBizIds = new Set(allBiz.filter((b) => b.cityId === city.id).map((b) => b.id))
+    return allDeals.filter((d) => cityBizIds.has(d.businessId))
+  }, [allDeals, allBiz, city.id])
 
   // Trending: load from Supabase (real recent reviews), fall back to top-rated mix
   const [trendingIds, setTrendingIds] = useState<string[]>([])

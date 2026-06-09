@@ -5,6 +5,7 @@ import type { Deal } from '../data/types'
 import { businessesById } from '../data/businesses'
 import { categoryMap } from '../data/categories'
 import { discountPct, formatPrice } from '../lib/format'
+import { useStore } from '../store/StoreContext'
 import SmartImage from './SmartImage'
 
 interface Props {
@@ -13,7 +14,13 @@ interface Props {
 }
 
 export default function DealCard({ deal, className }: Props) {
-  const biz = businessesById[deal.businessId]
+  const { liveBusinesses, importedBusinesses } = useStore()
+  // Resolve the venue across seed, live (approved) and imported businesses so
+  // deals on claimed/imported venues still show their name and category.
+  const biz =
+    businessesById[deal.businessId] ??
+    liveBusinesses.find((b) => b.id === deal.businessId) ??
+    importedBusinesses.find((b) => b.id === deal.businessId)
   const emoji = biz ? categoryMap[biz.category].emoji : '🎟️'
   const pct = discountPct(deal.originalPrice, deal.dealPrice)
 

@@ -15,7 +15,7 @@ import PaymentForm from '../components/PaymentForm'
 
 export default function DealDetail() {
   const { id } = useParams()
-  const { buyVoucher, dealById } = useStore()
+  const { buyVoucher, dealById, liveBusinesses, importedBusinesses } = useStore()
   const { user, configured } = useAuth()
   const deal = id ? dealById(id) : undefined
   const [voucher, setVoucher] = useState<Voucher | null>(null)
@@ -47,7 +47,10 @@ export default function DealDetail() {
     )
   }
 
-  const biz = businessesById[deal.businessId]
+  const biz =
+    businessesById[deal.businessId] ??
+    liveBusinesses.find((b) => b.id === deal.businessId) ??
+    importedBusinesses.find((b) => b.id === deal.businessId)
   const cat = biz ? categoryMap[biz.category] : undefined
   const pct = discountPct(deal.originalPrice, deal.dealPrice)
 

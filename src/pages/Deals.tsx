@@ -12,14 +12,21 @@ import DealCard from '../components/DealCard'
 type Sort = 'popular' | 'discount' | 'price'
 
 export default function Deals() {
-  const { allDeals } = useStore()
+  const { allDeals, liveBusinesses, importedBusinesses } = useStore()
   const { city } = useCity()
   const [cat, setCat] = useState<string>('all')
   const [sort, setSort] = useState<Sort>('popular')
 
+  // Resolve venues across seed, live and imported so deals on claimed venues show.
+  const bizById = useMemo(() => {
+    const m = new Map(Object.entries(businessesById))
+    for (const b of [...liveBusinesses, ...importedBusinesses]) m.set(b.id, b)
+    return m
+  }, [liveBusinesses, importedBusinesses])
+
   const list = useMemo(() => {
     let l = allDeals.filter((d) => {
-      const biz = businessesById[d.businessId]
+      const biz = bizById.get(d.businessId)
       if (!biz || biz.cityId !== city.id) return false
       if (cat === 'all') return true
       return biz.category === cat
@@ -31,7 +38,7 @@ export default function Deals() {
     else if (sort === 'price') l = [...l].sort((a, b) => a.dealPrice - b.dealPrice)
     else l = [...l].sort((a, b) => b.sold - a.sold)
     return l
-  }, [cat, sort, allDeals, city])
+  }, [cat, sort, allDeals, bizById, city])
 
   return (
     <div className="mx-auto max-w-7xl px-4 py-6">
