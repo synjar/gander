@@ -155,3 +155,16 @@ create policy "Owners can claim businesses" on public.imported_businesses
   for update to authenticated
   using (claimed_by is null or claimed_by = auth.uid())
   with check (claimed_by is null or claimed_by = auth.uid());
+
+-- 6) Booking availability ----------------------------------------------------
+-- Per-venue booking settings (slots, max party, daily capacity).
+alter table public.business_profiles add column if not exists booking_settings jsonb;
+
+-- Confirmed bookings for a venue on a date (capacity check). SECURITY DEFINER
+-- because the bookings table is RLS-locked to each user's own rows.
+create or replace function public.bookings_count_on_date(p_business_id text, p_date date)
+returns integer language sql security definer set search_path = public as $$
+  select count(*)::int from public.bookings
+  where business_id = p_business_id and date = p_date and status = 'confirmed';
+$$;
+grant execute on function public.bookings_count_on_date(text, date) to anon, authenticated;

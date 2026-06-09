@@ -643,7 +643,7 @@ export default function BusinessDetail() {
 
       {/* Modals + toast */}
       <ReviewModal open={reviewOpen} onClose={() => setReviewOpen(false)} business={b} />
-      <BookingModal open={bookOpen} onClose={() => setBookOpen(false)} business={b} mode={booking.mode} />
+      <BookingModal open={bookOpen} onClose={() => setBookOpen(false)} business={b} mode={booking.mode} settings={profile?.bookingSettings} />
       <ClaimModal open={claimOpen} onClose={() => setClaimOpen(false)} business={b} />
       {toast && (
         <div className="fixed bottom-24 left-1/2 z-50 -translate-x-1/2 rounded-full bg-stone-900 px-4 py-2 text-sm font-medium text-white shadow-lg md:bottom-8">

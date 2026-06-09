@@ -415,6 +415,14 @@ const DEFAULT_HOURS: Record<string, DayHours> = Object.fromEntries(
   DAYS.map((d) => [d, { open: '09:00', close: '22:00', closed: d === 'Sunday' }]),
 )
 
+// Standard bookable time slots merchants can toggle on/off
+const BOOKING_SLOTS = [
+  '09:00', '09:30', '10:00', '10:30', '11:00', '11:30',
+  '12:00', '12:30', '13:00', '13:30', '14:00', '14:30',
+  '17:00', '17:30', '18:00', '18:30', '19:00', '19:30',
+  '20:00', '20:30', '21:00', '21:30',
+]
+
 function HoursEditor({
   hours, onChange,
 }: {
@@ -863,6 +871,13 @@ function EditListingTab({ business }: { business: Business }) {
   const [newDishName, setNewDishName] = useState('')
   const [newDishPrice, setNewDishPrice] = useState('')
   const [newDishDesc, setNewDishDesc] = useState('')
+  // Booking availability
+  const [booking, setBooking] = useState<db.BookingSettings>({
+    acceptBookings: business.bookable ?? true,
+    slots: ['12:00', '12:30', '13:00', '18:00', '18:30', '19:00', '19:30', '20:00'],
+    maxParty: 8,
+    dailyCapacity: 0,
+  })
 
   // Load saved profile
   useEffect(() => {
@@ -882,6 +897,7 @@ function EditListingTab({ business }: { business: Business }) {
           if (p.amenities.length) setAmenities(p.amenities)
           if (p.hours) setHours(p.hours)
           if (p.popularDishes.length) setDishes(p.popularDishes)
+          if (p.bookingSettings) setBooking(p.bookingSettings)
         }
       })
       .catch(console.error)
@@ -910,6 +926,7 @@ function EditListingTab({ business }: { business: Business }) {
         phone, website, address, postcode,
         heroImageUrl: heroUrl, galleryUrls: gallery, amenities, hours,
         popularDishes: dishes,
+        bookingSettings: booking,
       })
       setSaved(true)
       setTimeout(() => setSaved(false), 3000)
@@ -1002,6 +1019,66 @@ function EditListingTab({ business }: { business: Business }) {
           <div className="mt-3">
             <HoursEditor hours={hours} onChange={setHours} />
           </div>
+        </section>
+
+        {/* Booking availability */}
+        <section className="rounded-2xl border border-stone-200 bg-white p-5">
+          <div className="flex items-center justify-between gap-3">
+            <div>
+              <h2 className="flex items-center gap-2 font-display text-lg font-semibold text-stone-900">
+                <CalendarCheck size={18} className="text-brand-500" /> Booking availability
+              </h2>
+              <p className="mt-0.5 text-sm text-stone-500">Control which times you take, party size and daily covers.</p>
+            </div>
+            <button
+              type="button"
+              onClick={() => setBooking((s) => ({ ...s, acceptBookings: !s.acceptBookings }))}
+              className={clsx('relative h-6 w-11 shrink-0 rounded-full transition-colors', booking.acceptBookings ? 'bg-emerald-500' : 'bg-stone-300')}
+              aria-label="Accept bookings"
+            >
+              <span className={clsx('absolute top-0.5 h-5 w-5 rounded-full bg-white shadow transition-transform', booking.acceptBookings ? 'translate-x-5' : 'translate-x-0.5')} />
+            </button>
+          </div>
+
+          {booking.acceptBookings && (
+            <>
+              <p className="mb-2 mt-4 text-xs font-semibold uppercase tracking-wide text-stone-400">Bookable times</p>
+              <div className="flex flex-wrap gap-2">
+                {BOOKING_SLOTS.map((t) => {
+                  const on = booking.slots.includes(t)
+                  return (
+                    <button
+                      key={t}
+                      type="button"
+                      onClick={() => setBooking((s) => ({ ...s, slots: on ? s.slots.filter((x) => x !== t) : [...s.slots, t].sort() }))}
+                      className={clsx('rounded-full border px-3 py-1 text-xs font-medium transition', on ? 'border-brand-300 bg-brand-50 text-brand-700' : 'border-stone-200 text-stone-500 hover:border-stone-300')}
+                    >
+                      {t}
+                    </button>
+                  )
+                })}
+              </div>
+
+              <div className="mt-4 grid grid-cols-2 gap-3">
+                <label className="block text-sm">
+                  <span className="mb-1 block font-medium text-stone-700">Max party size</span>
+                  <input
+                    type="number" min={1} max={50} value={booking.maxParty}
+                    onChange={(e) => setBooking((s) => ({ ...s, maxParty: Math.max(1, Number(e.target.value) || 1) }))}
+                    className="w-full rounded-lg border border-stone-200 px-3 py-2 text-sm outline-none focus:border-brand-400"
+                  />
+                </label>
+                <label className="block text-sm">
+                  <span className="mb-1 block font-medium text-stone-700">Daily capacity <span className="font-normal text-stone-400">(0 = no limit)</span></span>
+                  <input
+                    type="number" min={0} value={booking.dailyCapacity}
+                    onChange={(e) => setBooking((s) => ({ ...s, dailyCapacity: Math.max(0, Number(e.target.value) || 0) }))}
+                    className="w-full rounded-lg border border-stone-200 px-3 py-2 text-sm outline-none focus:border-brand-400"
+                  />
+                </label>
+              </div>
+            </>
+          )}
         </section>
 
         {/* Popular dishes — restaurants & food venues */}

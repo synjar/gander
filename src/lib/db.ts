@@ -607,6 +607,13 @@ export interface DayHours {
   closed: boolean
 }
 
+export interface BookingSettings {
+  acceptBookings: boolean
+  slots: string[] // e.g. ["12:00","12:30","19:00"]
+  maxParty: number
+  dailyCapacity: number // total confirmed bookings allowed per day; 0 = unlimited
+}
+
 export interface BusinessProfile {
   businessId: string
   name?: string
@@ -621,6 +628,7 @@ export interface BusinessProfile {
   amenities: string[]
   hours?: Record<string, DayHours> // keyed by day name e.g. "Monday"
   popularDishes: Dish[]
+  bookingSettings?: BookingSettings
 }
 
 export async function getBusinessProfile(businessId: string): Promise<BusinessProfile | null> {
@@ -645,6 +653,7 @@ export async function getBusinessProfile(businessId: string): Promise<BusinessPr
     amenities: (data.amenities as string[]) ?? [],
     hours: (data.hours as Record<string, DayHours>) ?? undefined,
     popularDishes: (data.popular_dishes as Dish[]) ?? [],
+    bookingSettings: (data.booking_settings as BookingSettings) ?? undefined,
   }
 }
 
@@ -687,6 +696,7 @@ export async function saveBusinessProfile(
         amenities: profile.amenities ?? [],
         hours: profile.hours ?? null,
         popular_dishes: profile.popularDishes ?? [],
+        booking_settings: profile.bookingSettings ?? null,
         updated_at: new Date().toISOString(),
       },
       { onConflict: 'business_id' },
@@ -1335,6 +1345,14 @@ export async function getTrendingBusinessIds(limit = 8): Promise<string[]> {
     .sort((a, b) => b[1] - a[1])
     .slice(0, limit)
     .map(([id]) => id)
+}
+
+/** Confirmed bookings already taken for a business on a date (for capacity).
+ *  Uses a SECURITY DEFINER RPC since bookings RLS is per-user. */
+export async function getBookingsCountOnDate(businessId: string, date: string): Promise<number> {
+  if (!backendEnabled) return 0
+  const { data } = await client().rpc('bookings_count_on_date', { p_business_id: businessId, p_date: date })
+  return typeof data === 'number' ? data : 0
 }
 
 export async function getBookingsByDayOfWeek(businessId: string): Promise<DayBookings[]> {

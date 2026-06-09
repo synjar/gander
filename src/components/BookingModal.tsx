@@ -1,11 +1,13 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { Calendar, Check, Clock, Minus, Plus, Users } from 'lucide-react'
 import clsx from 'clsx'
 import Modal from './Modal'
 import { useStore } from '../store/StoreContext'
+import * as db from '../lib/db'
+import type { BookingSettings } from '../lib/db'
 import type { Booking, Business } from '../data/types'
 
-const TIMES = [
+const DEFAULT_TIMES = [
   '12:00',
   '12:30',
   '13:00',
@@ -34,16 +36,34 @@ interface Props {
   onClose: () => void
   business: Business
   mode?: 'table' | 'class' | 'treatment'
+  /** Owner-configured availability (slots, max party, daily capacity). */
+  settings?: BookingSettings
 }
 
-export default function BookingModal({ open, onClose, business, mode = 'table' }: Props) {
+export default function BookingModal({ open, onClose, business, mode = 'table', settings }: Props) {
   const { addBooking } = useStore()
   const today = new Date().toISOString().slice(0, 10)
+
+  const times = settings?.slots?.length ? settings.slots : DEFAULT_TIMES
+  const maxParty = settings?.maxParty && settings.maxParty > 0 ? settings.maxParty : 12
+  const dailyCapacity = settings?.dailyCapacity ?? 0
+
   const [date, setDate] = useState(today)
-  const [time, setTime] = useState('19:00')
+  const [time, setTime] = useState(() => times[Math.min(times.length - 1, times.indexOf('19:00') >= 0 ? times.indexOf('19:00') : 0)])
   const [party, setParty] = useState(2)
   const [occasion, setOccasion] = useState('None')
   const [confirmed, setConfirmed] = useState<Booking | null>(null)
+
+  // Capacity: how many confirmed bookings the venue already has on the chosen day
+  const [takenToday, setTakenToday] = useState<number | null>(null)
+  useEffect(() => {
+    if (!open || dailyCapacity <= 0) { setTakenToday(null); return }
+    let cancelled = false
+    db.getBookingsCountOnDate(business.id, date).then((n) => { if (!cancelled) setTakenToday(n) })
+    return () => { cancelled = true }
+  }, [open, date, business.id, dailyCapacity])
+
+  const fullyBooked = dailyCapacity > 0 && takenToday !== null && takenToday >= dailyCapacity
 
   const noun = mode === 'class' ? 'class' : mode === 'treatment' ? 'treatment' : 'table'
 
@@ -132,7 +152,7 @@ export default function BookingModal({ open, onClose, business, mode = 'table' }
               <Clock size={15} className="text-brand-500" /> Time
             </label>
             <div className="grid grid-cols-4 gap-2 sm:grid-cols-6">
-              {TIMES.map((t) => (
+              {times.map((t) => (
                 <button
                   key={t}
                   type="button"
@@ -165,13 +185,13 @@ export default function BookingModal({ open, onClose, business, mode = 'table' }
               <span className="w-10 text-center text-lg font-semibold text-stone-900">{party}</span>
               <button
                 type="button"
-                onClick={() => setParty((p) => Math.min(12, p + 1))}
+                onClick={() => setParty((p) => Math.min(maxParty, p + 1))}
                 className="grid h-10 w-10 place-items-center rounded-full border border-stone-200 text-stone-600 hover:bg-stone-50"
               >
                 <Plus size={16} />
               </button>
               <span className="text-sm text-stone-400">
-                {party === 12 ? 'For larger groups, call the venue' : 'guests'}
+                {party >= maxParty ? 'For larger groups, call the venue' : 'guests'}
               </span>
             </div>
           </div>
@@ -195,9 +215,15 @@ export default function BookingModal({ open, onClose, business, mode = 'table' }
             </div>
           )}
 
+          {fullyBooked && (
+            <p className="rounded-xl bg-amber-50 px-3 py-2 text-center text-sm font-medium text-amber-700">
+              Fully booked on {prettyDate(date)} — try another date.
+            </p>
+          )}
           <button
             onClick={submit}
-            className="w-full rounded-full bg-brand-500 py-3 text-sm font-semibold text-white transition hover:bg-brand-600"
+            disabled={fullyBooked}
+            className="w-full rounded-full bg-brand-500 py-3 text-sm font-semibold text-white transition hover:bg-brand-600 disabled:opacity-40"
           >
             Confirm booking · {prettyDate(date)} at {time}
           </button>
