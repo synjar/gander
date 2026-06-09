@@ -1,25 +1,28 @@
-import { useEffect } from 'react'
+import { lazy, useEffect } from 'react'
 import { createBrowserRouter, RouterProvider } from 'react-router-dom'
 import { HelmetProvider } from 'react-helmet-async'
 import Layout from './components/Layout'
-import Home from './pages/Home'
-import Search from './pages/Search'
-import MapPage from './pages/MapPage'
-import BusinessDetail from './pages/BusinessDetail'
-import Deals from './pages/Deals'
-import DealDetail from './pages/DealDetail'
-import Feed from './pages/Feed'
-import Profile from './pages/Profile'
-import BusinessLanding from './pages/BusinessLanding'
-import MerchantDashboard from './pages/MerchantDashboard'
-import BusinessOnboarding from './pages/BusinessOnboarding'
-import BusinessFlyer from './pages/BusinessFlyer'
-import Redeem from './pages/Redeem'
-import StaffScanner from './pages/StaffScanner'
-import StripeConnectCallback from './pages/StripeConnectCallback'
-import UserProfile from './pages/UserProfile'
-import Admin from './pages/Admin'
-import NotFound from './pages/NotFound'
+import Home from './pages/Home' // eager: the landing route should paint immediately
+
+// Everything else is code-split so a first-time visitor doesn't download the
+// merchant dashboard, admin panel, maps, charts, etc. they may never open.
+const Search = lazy(() => import('./pages/Search'))
+const MapPage = lazy(() => import('./pages/MapPage'))
+const BusinessDetail = lazy(() => import('./pages/BusinessDetail'))
+const Deals = lazy(() => import('./pages/Deals'))
+const DealDetail = lazy(() => import('./pages/DealDetail'))
+const Feed = lazy(() => import('./pages/Feed'))
+const Profile = lazy(() => import('./pages/Profile'))
+const BusinessLanding = lazy(() => import('./pages/BusinessLanding'))
+const MerchantDashboard = lazy(() => import('./pages/MerchantDashboard'))
+const BusinessOnboarding = lazy(() => import('./pages/BusinessOnboarding'))
+const BusinessFlyer = lazy(() => import('./pages/BusinessFlyer'))
+const Redeem = lazy(() => import('./pages/Redeem'))
+const StaffScanner = lazy(() => import('./pages/StaffScanner'))
+const StripeConnectCallback = lazy(() => import('./pages/StripeConnectCallback'))
+const UserProfile = lazy(() => import('./pages/UserProfile'))
+const Admin = lazy(() => import('./pages/Admin'))
+const NotFound = lazy(() => import('./pages/NotFound'))
 
 const router = createBrowserRouter([
   {
