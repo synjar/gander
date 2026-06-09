@@ -1,4 +1,4 @@
-import { useMemo, useState, useCallback } from 'react'
+import { useMemo, useState, useCallback, useEffect, useRef } from 'react'
 import { useSearchParams } from 'react-router-dom'
 import { Helmet } from 'react-helmet-async'
 import { Locate, Loader2, MapPin, SlidersHorizontal, X } from 'lucide-react'
@@ -43,7 +43,7 @@ function matchesQuery(b: Business, q: string): boolean {
 
 export default function Search() {
   const [params, setParams] = useSearchParams()
-  const { city } = useCity()
+  const { city, userLocation } = useCity()
   const { hiddenBusinesses, liveBusinesses, importedBusinesses, profileHeroImages } = useStore()
   const applyHero = useCallback(
     (b: Business) =>
@@ -111,17 +111,32 @@ export default function Search() {
     )
   }
 
-  // Build distance map when user location is known
+  // Effective location: an explicit "near me" tap overrides, otherwise fall back
+  // to the location detected app-wide on load.
+  const effLat = userLat ?? userLocation?.[0] ?? null
+  const effLng = userLng ?? userLocation?.[1] ?? null
+
+  // Build distance map when a location is known
   const distanceMap = useMemo<Map<string, number>>(() => {
     const map = new Map<string, number>()
-    if (userLat === null || userLng === null) return map
+    if (effLat === null || effLng === null) return map
     for (const b of allBiz) {
       if (b.lat != null && b.lng != null) {
-        map.set(b.id, distanceKm(userLat, userLng, b.lat, b.lng))
+        map.set(b.id, distanceKm(effLat, effLng, b.lat, b.lng))
       }
     }
     return map
-  }, [userLat, userLng, allBiz])
+  }, [effLat, effLng, allBiz])
+
+  // Default to nearest-first once we know where the user is (unless they've
+  // already chosen a sort).
+  const autoSortDone = useRef(false)
+  useEffect(() => {
+    if (effLat !== null && effLng !== null && !autoSortDone.current) {
+      autoSortDone.current = true
+      setSort('nearby')
+    }
+  }, [effLat, effLng])
 
   const [verifiedOnly, setVerifiedOnly] = useState(true)
 
@@ -136,11 +151,14 @@ export default function Search() {
   }, [allBiz, city.id, hiddenBusinesses])
 
   const results = useMemo(() => {
+    // Search the whole site, not just the selected city. When there's no query
+    // we scope to the current city to avoid dumping every venue everywhere.
     let list = allBiz.filter(
-      (b) => b.cityId === city.id && !hiddenBusinesses.includes(b.id) && matchesQuery(b, q),
+      (b) => (q ? true : b.cityId === city.id) && !hiddenBusinesses.includes(b.id) && matchesQuery(b, q),
     )
-    // Attractions are publicly managed (not claimable), so always show them
-    if (verifiedOnly) list = list.filter((b) => b.source !== 'osm' || b.claimed || b.category === 'attractions')
+    // The "verified only" filter hides unclaimed OSM stubs while browsing — but
+    // a name search should still find them, so we bypass it whenever there's a query.
+    if (verifiedOnly && !q) list = list.filter((b) => b.source !== 'osm' || b.claimed || b.category === 'attractions')
     if (category !== 'all') list = list.filter((b) => b.category === category)
     if (neighbourhood !== 'all' && city.neighbourhoods.includes(neighbourhood))
       list = list.filter((b) => b.neighbourhood === neighbourhood)
@@ -244,7 +262,7 @@ export default function Search() {
             <span className="hidden sm:inline">Sort</span>
             <select
               value={sort}
-              onChange={(e) => setSort(e.target.value as SortKey)}
+              onChange={(e) => { autoSortDone.current = true; setSort(e.target.value as SortKey) }}
               className="rounded-full border border-stone-200 bg-white px-3 py-2 text-sm font-medium text-stone-700 outline-none focus:border-brand-400"
             >
               {Object.entries(sortLabels).map(([k, v]) => (

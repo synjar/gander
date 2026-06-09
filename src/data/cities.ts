@@ -93,6 +93,20 @@ export const cityMap: Record<string, City> = Object.fromEntries(
 
 export const DEFAULT_CITY = 'london'
 
+/** Pick the supported city closest to a lat/lng (squared distance is fine here). */
+export function nearestCity(lat: number, lng: number): City {
+  let best = cities[0]
+  let bestD = Infinity
+  for (const c of cities) {
+    const d = (c.lat - lat) ** 2 + (c.lng - lng) ** 2
+    if (d < bestD) {
+      bestD = d
+      best = c
+    }
+  }
+  return best
+}
+
 /** 'West Sussex' -> 'west-sussex', 'London' -> 'london' */
 export function cityIdFromName(name: string): string {
   return name.toLowerCase().replace(/\s+/g, '-')
