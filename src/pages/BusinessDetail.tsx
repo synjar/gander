@@ -571,10 +571,12 @@ export default function BusinessDetail() {
                   target="_blank"
                   rel="noreferrer"
                   onClick={() => void db.logBusinessEvent(b.id, 'website')}
-                  className="flex items-center gap-2.5 text-stone-600 transition hover:text-brand-600"
+                  className="flex min-w-0 items-center gap-2.5 text-stone-600 transition hover:text-brand-600"
                 >
                   <Globe size={16} className="shrink-0 text-brand-500" />
-                  <span className="text-brand-600">{b.website}</span>
+                  <span className="min-w-0 truncate text-brand-600">
+                    {b.website.replace(/^https?:\/\/(www\.)?/i, '').replace(/\/$/, '')}
+                  </span>
                 </a>
               )}
             </div>
