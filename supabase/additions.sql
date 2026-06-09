@@ -98,3 +98,60 @@ returns integer language sql security definer set search_path = public as $$
   select count(*)::int from public.favourites where business_id = p_business_id;
 $$;
 grant execute on function public.business_favourite_count(text) to anon, authenticated;
+
+-- 5) Tighten merchant write access -------------------------------------------
+-- Previously business_profiles / merchant_stripe_accounts / staff_members were
+-- "for all using(true) with check(true)" — anyone (even logged out) could read
+-- AND write every row (edit any listing, redirect any payout). Lock WRITES to
+-- the venue's owner; keep READS open where the app needs them.
+--
+-- "Owner" = the user who claimed the matching imported venue. Seed/demo
+-- businesses (no imported_businesses row) stay editable so demo mode works.
+
+-- A user may write rows for a business they own, or for a seed/demo business.
+create or replace function public.owns_business(p_business_id text)
+returns boolean language sql stable security definer set search_path = public as $$
+  select
+    exists (select 1 from public.imported_businesses ib
+            where ib.id::text = p_business_id and ib.claimed_by = auth.uid())
+    or not exists (select 1 from public.imported_businesses ib
+                   where ib.id::text = p_business_id);
+$$;
+grant execute on function public.owns_business(text) to authenticated;
+
+-- business_profiles: public read, owner-only write
+drop policy if exists "Public access to business_profiles" on public.business_profiles;
+drop policy if exists "business_profiles_select" on public.business_profiles;
+create policy "business_profiles_select" on public.business_profiles for select using (true);
+drop policy if exists "business_profiles_write" on public.business_profiles;
+create policy "business_profiles_write" on public.business_profiles
+  for all to authenticated
+  using (public.owns_business(business_id)) with check (public.owns_business(business_id));
+
+-- merchant_stripe_accounts: read open (needed to route the payment split),
+-- owner-only write so nobody can redirect a payout
+drop policy if exists "Public access to merchant_stripe_accounts" on public.merchant_stripe_accounts;
+drop policy if exists "stripe_accounts_select" on public.merchant_stripe_accounts;
+create policy "stripe_accounts_select" on public.merchant_stripe_accounts for select using (true);
+drop policy if exists "stripe_accounts_write" on public.merchant_stripe_accounts;
+create policy "stripe_accounts_write" on public.merchant_stripe_accounts
+  for all to authenticated
+  using (public.owns_business(business_id)) with check (public.owns_business(business_id));
+
+-- staff_members: read open, owner-only write
+drop policy if exists "Public access to staff_members" on public.staff_members;
+drop policy if exists "staff_select" on public.staff_members;
+create policy "staff_select" on public.staff_members for select using (true);
+drop policy if exists "staff_write" on public.staff_members;
+create policy "staff_write" on public.staff_members
+  for all to authenticated
+  using (public.owns_business(business_id)) with check (public.owns_business(business_id));
+
+-- imported_businesses: allow claiming an unclaimed venue and editing your own,
+-- but stop anyone from stealing a venue already claimed by someone else.
+-- (Imports only touch unclaimed venues, so claimed_by stays null there.)
+drop policy if exists "Owners can claim businesses" on public.imported_businesses;
+create policy "Owners can claim businesses" on public.imported_businesses
+  for update to authenticated
+  using (claimed_by is null or claimed_by = auth.uid())
+  with check (claimed_by is null or claimed_by = auth.uid());

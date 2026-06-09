@@ -34,6 +34,7 @@ import BookingModal from '../components/BookingModal'
 import Lightbox from '../components/Lightbox'
 import CheckInButton from '../components/CheckInButton'
 import DirectionsButton from '../components/DirectionsButton'
+import ClaimModal from '../components/ClaimModal'
 
 function bookingConfig(b: Business): { label: string; mode: 'table' | 'class' | 'treatment' } {
   switch (b.category) {
@@ -117,6 +118,7 @@ export default function BusinessDetail() {
     : undefined
   const [reviewOpen, setReviewOpen] = useState(false)
   const [bookOpen, setBookOpen] = useState(false)
+  const [claimOpen, setClaimOpen] = useState(false)
   const [toast, setToast] = useState('')
   const [profile, setProfile] = useState<db.BusinessProfile | null>(null)
   const [lightboxIndex, setLightboxIndex] = useState<number | null>(null)
@@ -293,12 +295,12 @@ export default function BusinessDetail() {
               respond to reviews, and access your merchant dashboard.
             </p>
           </div>
-          <Link
-            to="/merchant"
+          <button
+            onClick={() => setClaimOpen(true)}
             className="shrink-0 rounded-full bg-amber-500 px-3 py-1.5 text-xs font-semibold text-white hover:bg-amber-600"
           >
             Claim listing
-          </Link>
+          </button>
         </div>
       )}
 
@@ -642,6 +644,7 @@ export default function BusinessDetail() {
       {/* Modals + toast */}
       <ReviewModal open={reviewOpen} onClose={() => setReviewOpen(false)} business={b} />
       <BookingModal open={bookOpen} onClose={() => setBookOpen(false)} business={b} mode={booking.mode} />
+      <ClaimModal open={claimOpen} onClose={() => setClaimOpen(false)} business={b} />
       {toast && (
         <div className="fixed bottom-24 left-1/2 z-50 -translate-x-1/2 rounded-full bg-stone-900 px-4 py-2 text-sm font-medium text-white shadow-lg md:bottom-8">
           {toast}

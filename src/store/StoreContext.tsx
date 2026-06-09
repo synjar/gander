@@ -152,6 +152,8 @@ interface StoreValue extends Persisted {
   reloadPublic: () => Promise<void>
   /** Bulk-import OSM venues; returns inserted/updated/skippedClaimed counts */
   importBusinesses: (venues: import('../lib/overpass').OsmVenue[]) => Promise<{ inserted: number; updated: number; skippedClaimed: number }>
+  /** Claim an imported listing for the signed-in user (they become the owner). */
+  claimBusiness: (businessId: string) => Promise<void>
 }
 
 const StoreContext = createContext<StoreValue | null>(null)
@@ -699,6 +701,15 @@ export function StoreProvider({ children }: { children: ReactNode }) {
     return result
   }, [reloadPublic])
 
+  // Claim an imported listing for the signed-in user → they become the owner and
+  // can manage it from the dashboard.
+  const claimBusiness = useCallback(async (businessId: string) => {
+    if (!backendUserId) throw new Error('Please sign in to claim a listing.')
+    await db.claimBusiness(businessId, backendUserId)
+    await reloadPublic()
+    setManagedBusinessId(businessId)
+  }, [backendUserId, reloadPublic])
+
   const value: StoreValue = {
     userReviews,
     favourites,
@@ -746,6 +757,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
     backendSynced: Boolean(backendUserId),
     importedBusinesses,
     importBusinesses,
+    claimBusiness,
     profileHeroImages,
     reloadPublic,
   }
