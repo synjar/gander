@@ -14,8 +14,17 @@
  */
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { Link } from 'react-router-dom'
-import { Download, Globe, KeyRound, Loader2, Mail, Phone, Printer, RefreshCw, Send, ShieldCheck, Users } from 'lucide-react'
+import { Check, Copy, Download, Globe, KeyRound, Loader2, Mail, MessageCircle, MessageSquare, Phone, Printer, RefreshCw, Send, ShieldCheck, Users, X } from 'lucide-react'
 import clsx from 'clsx'
+import {
+  finalEmail,
+  followUpEmail,
+  introEmail,
+  TEMPLATE_LABELS,
+  waNumber,
+  whatsappMessage,
+  type TemplateKey,
+} from '../lib/outreachTemplates'
 
 const SECRET_KEY = 'gander.outreach_secret'
 
@@ -68,6 +77,7 @@ export default function OutreachPanel() {
   const [showEmail, setShowEmail] = useState(false)
   const [msg, setMsg] = useState('')
   const [error, setError] = useState('')
+  const [composeLead, setComposeLead] = useState<Lead | null>(null)
 
   const call = useCallback(
     async (body: Record<string, unknown>) => {
@@ -296,6 +306,7 @@ export default function OutreachPanel() {
                 <th className="px-3 py-2 font-semibold">Contact</th>
                 <th className="hidden px-3 py-2 font-semibold md:table-cell">Category</th>
                 <th className="px-3 py-2 font-semibold">Status</th>
+                <th className="px-3 py-2 font-semibold">Reach out</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-stone-100">
@@ -341,6 +352,14 @@ export default function OutreachPanel() {
                         </option>
                       ))}
                     </select>
+                  </td>
+                  <td className="px-3 py-2.5">
+                    <button
+                      onClick={() => setComposeLead(l)}
+                      className="flex items-center gap-1.5 rounded-full border border-brand-200 bg-brand-50 px-3 py-1.5 text-xs font-semibold text-brand-700 hover:bg-brand-100"
+                    >
+                      <MessageSquare size={13} /> Message
+                    </button>
                   </td>
                 </tr>
               ))}
@@ -395,6 +414,181 @@ export default function OutreachPanel() {
           </div>
         )}
       </div>
+
+      {composeLead && (
+        <ComposeModal
+          lead={composeLead}
+          onClose={() => setComposeLead(null)}
+          onContacted={(id) => updateStatus(id, 'contacted')}
+        />
+      )}
     </section>
+  )
+}
+
+/**
+ * Per-lead message composer — your own "dotless". Pick one of your saved
+ * templates, it auto-fills the business name/town/listing link, and you fire it
+ * off on the best channel: WhatsApp (opens with the text pre-typed), email
+ * (opens your mail client), or just copy it. Marks the lead "Contacted" for you.
+ */
+function ComposeModal({
+  lead,
+  onClose,
+  onContacted,
+}: {
+  lead: Lead
+  onClose: () => void
+  onContacted: (id: string) => void
+}) {
+  const [tpl, setTpl] = useState<TemplateKey>(lead.email ? 'intro' : 'whatsapp')
+  const [copied, setCopied] = useState(false)
+
+  const isEmailTpl = tpl !== 'whatsapp'
+  const { subject, body } = useMemo(() => {
+    switch (tpl) {
+      case 'intro':
+        return introEmail(lead)
+      case 'followUp':
+        return followUpEmail(lead)
+      case 'final':
+        return finalEmail(lead)
+      case 'whatsapp':
+        return { subject: '', body: whatsappMessage(lead) }
+    }
+  }, [tpl, lead])
+
+  const [text, setText] = useState(body)
+  const [subj, setSubj] = useState(subject)
+  // Re-seed editable fields when the template switches
+  useEffect(() => {
+    setText(body)
+    setSubj(subject)
+    setCopied(false)
+  }, [body, subject])
+
+  async function copy() {
+    const payload = isEmailTpl ? `Subject: ${subj}\n\n${text}` : text
+    try {
+      await navigator.clipboard.writeText(payload)
+      setCopied(true)
+      setTimeout(() => setCopied(false), 1800)
+    } catch {
+      /* clipboard blocked — user can still select the textarea */
+    }
+  }
+
+  function openWhatsApp() {
+    if (!lead.phone) return
+    window.open(`https://wa.me/${waNumber(lead.phone)}?text=${encodeURIComponent(text)}`, '_blank')
+    onContacted(lead.id)
+  }
+
+  function openEmail() {
+    if (!lead.email) return
+    window.open(
+      `mailto:${lead.email}?subject=${encodeURIComponent(subj)}&body=${encodeURIComponent(text)}`,
+      '_blank',
+    )
+    onContacted(lead.id)
+  }
+
+  return (
+    <div
+      className="fixed inset-0 z-50 flex items-end justify-center bg-stone-900/40 p-0 sm:items-center sm:p-4"
+      onClick={onClose}
+    >
+      <div
+        className="flex max-h-[92vh] w-full max-w-xl flex-col rounded-t-3xl bg-white shadow-xl sm:rounded-3xl"
+        onClick={(e) => e.stopPropagation()}
+      >
+        <div className="flex items-start justify-between gap-3 border-b border-stone-100 p-5">
+          <div className="min-w-0">
+            <h3 className="truncate font-display text-lg font-semibold text-stone-900">{lead.name}</h3>
+            <p className="text-xs text-stone-400">
+              {[lead.town, lead.phone, lead.email].filter(Boolean).join(' · ') || 'No contact details'}
+            </p>
+          </div>
+          <button onClick={onClose} className="rounded-full p-1 text-stone-400 hover:bg-stone-100 hover:text-stone-600">
+            <X size={18} />
+          </button>
+        </div>
+
+        <div className="flex-1 overflow-y-auto p-5">
+          {/* Template picker */}
+          <div className="flex flex-wrap gap-1.5">
+            {(['intro', 'followUp', 'final', 'whatsapp'] as TemplateKey[]).map((k) => (
+              <button
+                key={k}
+                onClick={() => setTpl(k)}
+                className={clsx(
+                  'rounded-full px-3 py-1.5 text-xs font-semibold transition',
+                  tpl === k ? 'bg-brand-500 text-white' : 'bg-stone-100 text-stone-600 hover:bg-stone-200',
+                )}
+              >
+                {TEMPLATE_LABELS[k]}
+              </button>
+            ))}
+          </div>
+
+          {isEmailTpl && (
+            <label className="mt-4 block text-sm">
+              <span className="mb-1 block font-medium text-stone-700">Subject</span>
+              <input
+                value={subj}
+                onChange={(e) => setSubj(e.target.value)}
+                className="w-full rounded-lg border border-stone-200 px-3 py-2 text-sm outline-none focus:border-brand-400"
+              />
+            </label>
+          )}
+
+          <label className="mt-3 block text-sm">
+            <span className="mb-1 block font-medium text-stone-700">Message</span>
+            <textarea
+              value={text}
+              onChange={(e) => setText(e.target.value)}
+              rows={isEmailTpl ? 12 : 8}
+              className="w-full resize-y rounded-lg border border-stone-200 px-3 py-2 text-sm leading-relaxed outline-none focus:border-brand-400"
+            />
+          </label>
+          <p className="mt-1 text-xs text-stone-400">Edit anything before you send — it won't change the saved template.</p>
+        </div>
+
+        {/* Channel actions */}
+        <div className="flex flex-wrap items-center gap-2 border-t border-stone-100 p-5">
+          <button
+            onClick={copy}
+            className="flex items-center gap-1.5 rounded-full border border-stone-200 px-4 py-2 text-sm font-semibold text-stone-700 hover:bg-stone-50"
+          >
+            {copied ? <Check size={15} className="text-emerald-600" /> : <Copy size={15} />} {copied ? 'Copied' : 'Copy'}
+          </button>
+          {lead.phone && (
+            <button
+              onClick={openWhatsApp}
+              className="flex items-center gap-1.5 rounded-full bg-emerald-500 px-4 py-2 text-sm font-semibold text-white hover:bg-emerald-600"
+            >
+              <MessageCircle size={15} /> WhatsApp
+            </button>
+          )}
+          {lead.email && (
+            <button
+              onClick={openEmail}
+              className="flex items-center gap-1.5 rounded-full bg-brand-500 px-4 py-2 text-sm font-semibold text-white hover:bg-brand-600"
+            >
+              <Mail size={15} /> Email
+            </button>
+          )}
+          {lead.phone && (
+            <a
+              href={`tel:${lead.phone}`}
+              onClick={() => onContacted(lead.id)}
+              className="flex items-center gap-1.5 rounded-full border border-stone-200 px-4 py-2 text-sm font-semibold text-stone-700 hover:bg-stone-50"
+            >
+              <Phone size={15} /> Call
+            </a>
+          )}
+        </div>
+      </div>
+    </div>
   )
 }
