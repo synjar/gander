@@ -688,6 +688,77 @@ function ReviewsPanel() {
 
 // ─── Main Admin page ──────────────────────────────────────────────────────────
 
+/**
+ * Gate the whole console behind the admin secret (same one the outreach panel
+ * uses — OUTREACH_ADMIN_SECRET in Vercel). Verified server-side via the
+ * outreach API. When no backend exists (pure local dev, /api 404s) we allow
+ * entry since there's nothing real to protect.
+ */
+function AdminGate({ children }: { children: React.ReactNode }) {
+  const SECRET_KEY = 'gander.outreach_secret'
+  const [unlocked, setUnlocked] = useState(() => Boolean(sessionStorage.getItem(SECRET_KEY)))
+  const [input, setInput] = useState('')
+  const [checking, setChecking] = useState(false)
+  const [error, setError] = useState('')
+
+  async function unlock() {
+    const secret = input.trim()
+    if (!secret || checking) return
+    setChecking(true)
+    setError('')
+    try {
+      const res = await fetch('/api/outreach', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'x-outreach-secret': secret },
+        body: JSON.stringify({ action: 'stats' }),
+      })
+      if (res.status === 401) {
+        setError('Wrong secret.')
+        return
+      }
+      // 200 = verified; 404/500 = no backend here (local dev) — let it through.
+      sessionStorage.setItem(SECRET_KEY, secret)
+      setUnlocked(true)
+    } catch {
+      // API unreachable (local dev without functions) — nothing real to protect.
+      sessionStorage.setItem(SECRET_KEY, secret)
+      setUnlocked(true)
+    } finally {
+      setChecking(false)
+    }
+  }
+
+  if (unlocked) return <>{children}</>
+
+  return (
+    <div className="mx-auto max-w-sm px-4 py-24">
+      <div className="rounded-2xl border border-stone-200 bg-white p-6 text-center">
+        <span className="mx-auto grid h-11 w-11 place-items-center rounded-xl bg-stone-900 text-white">
+          <BarChart3 size={20} />
+        </span>
+        <h1 className="mt-3 font-display text-xl font-semibold text-stone-900">Admin console</h1>
+        <p className="mt-1 text-sm text-stone-500">Internal — enter the admin secret to continue.</p>
+        <input
+          type="password"
+          value={input}
+          onChange={(e) => setInput(e.target.value)}
+          onKeyDown={(e) => { if (e.key === 'Enter') void unlock() }}
+          placeholder="Admin secret"
+          className="mt-4 w-full rounded-xl border border-stone-200 px-3.5 py-2.5 text-sm outline-none focus:border-brand-400"
+        />
+        {error && <p className="mt-2 text-sm text-rose-600">{error}</p>}
+        <button
+          onClick={unlock}
+          disabled={!input.trim() || checking}
+          className="mt-3 flex w-full items-center justify-center gap-2 rounded-full bg-stone-900 py-2.5 text-sm font-semibold text-white transition hover:bg-stone-800 disabled:opacity-40"
+        >
+          {checking ? <Loader2 size={15} className="animate-spin" /> : null} Unlock
+        </button>
+      </div>
+    </div>
+  )
+}
+
 export default function Admin() {
   const {
     allReviews,
@@ -761,6 +832,7 @@ export default function Admin() {
   const recentReviews = allReviews.slice(0, 8)
 
   return (
+    <AdminGate>
     <div className="mx-auto max-w-7xl px-4 py-6">
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div className="flex items-center gap-2">
@@ -1004,5 +1076,6 @@ export default function Admin() {
       {/* Business outreach (Worthing etc.) */}
       <OutreachPanel />
     </div>
+    </AdminGate>
   )
 }

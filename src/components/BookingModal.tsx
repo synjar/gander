@@ -228,7 +228,7 @@ export default function BookingModal({ open, onClose, business, mode = 'table', 
             Confirm booking · {prettyDate(date)} at {time}
           </button>
           <p className="text-center text-xs text-stone-400">
-            Free to book. You won’t be charged — this is a prototype.
+            Free to book — no card required. The venue will confirm your booking.
           </p>
         </div>
       )}

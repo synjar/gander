@@ -295,7 +295,7 @@ function Step3({ f, set }: { f: FormState; set: (p: Partial<FormState>) => void 
         </div>
         <p className="text-sm text-stone-600">
           I confirm this is a real business and I have the authority to list it. I agree to Gander's{' '}
-          <Link to="/" className="text-brand-600 underline">terms of service</Link>.
+          <Link to="/terms" className="text-brand-600 underline">terms of service</Link>.
         </p>
       </button>
 

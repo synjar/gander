@@ -106,7 +106,8 @@ export default function DealDetail() {
             <h3 className="font-semibold text-stone-700">The fine print</h3>
             <p className="mt-1">
               Valid until {deal.expires}. One voucher per person per visit. Not valid with other
-              offers. This is a prototype — no payment will be taken.
+              offers. Payment is processed securely by Stripe — see our{' '}
+              <Link to="/terms" className="underline hover:text-brand-600">terms</Link>.
             </p>
           </section>
         </div>

@@ -4,6 +4,7 @@ import { Building2, Check, Loader2, X } from 'lucide-react'
 import type { Business } from '../data/types'
 import { useAuth } from '../auth/AuthContext'
 import { useStore } from '../store/StoreContext'
+import AuthModal from './AuthModal'
 
 interface Props {
   open: boolean
@@ -21,6 +22,7 @@ export default function ClaimModal({ open, onClose, business }: Props) {
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState('')
   const [done, setDone] = useState(false)
+  const [authOpen, setAuthOpen] = useState(false)
 
   if (!open) return null
 
@@ -75,15 +77,16 @@ export default function ClaimModal({ open, onClose, business }: Props) {
         ) : !isLoggedIn ? (
           <div className="py-1">
             <p className="text-sm text-stone-600">
-              You need a Gander account to claim a listing. Sign in (top-right), then come back here to claim{' '}
-              <strong>{business.name}</strong>.
+              Claiming <strong>{business.name}</strong> is free and takes about 2 minutes — you just
+              need a Gander account so we know it’s yours.
             </p>
             <button
-              onClick={onClose}
-              className="mt-4 w-full rounded-full border border-stone-200 py-2.5 text-sm font-semibold text-stone-700 transition hover:bg-stone-50"
+              onClick={() => setAuthOpen(true)}
+              className="mt-4 w-full rounded-full bg-brand-500 py-3 text-sm font-semibold text-white transition hover:bg-brand-600"
             >
-              Got it
+              Sign in or create a free account
             </button>
+            <AuthModal open={authOpen} onClose={() => setAuthOpen(false)} />
           </div>
         ) : (
           <>

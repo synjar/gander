@@ -23,6 +23,8 @@ const StripeConnectCallback = lazy(() => import('./pages/StripeConnectCallback')
 const UserProfile = lazy(() => import('./pages/UserProfile'))
 const Admin = lazy(() => import('./pages/Admin'))
 const NotFound = lazy(() => import('./pages/NotFound'))
+const Terms = lazy(() => import('./pages/Legal').then((m) => ({ default: m.Terms })))
+const Privacy = lazy(() => import('./pages/Legal').then((m) => ({ default: m.Privacy })))
 
 const router = createBrowserRouter([
   {
@@ -45,6 +47,8 @@ const router = createBrowserRouter([
       { path: 'business/dashboard', element: <MerchantDashboard /> },
       { path: 'u/:userId', element: <UserProfile /> },
       { path: 'admin', element: <Admin /> },
+      { path: 'terms', element: <Terms /> },
+      { path: 'privacy', element: <Privacy /> },
       { path: '*', element: <NotFound /> },
     ],
   },

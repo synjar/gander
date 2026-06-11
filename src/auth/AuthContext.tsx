@@ -88,8 +88,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       })
       if (error) return { error: error.message }
       // If the user arrived via a referral link, record it now.
-      // The DB trigger on `referrals` will automatically create a 15%-off reward
-      // for the referrer (expires in 90 days).
+      // process_referral awards the referrer 100 XP (no discount reward).
       const refCode = localStorage.getItem('gander.ref')
       if (refCode && data.user?.id) {
         const referrerId = await findUserByReferralCode(refCode)

@@ -24,10 +24,9 @@ const columns = [
   {
     heading: 'Company',
     links: [
-      { label: 'About us', to: '/' },
-      { label: 'Careers', to: '/' },
-      { label: 'Press', to: '/' },
-      { label: 'Admin console', to: '/admin' },
+      { label: 'For businesses', to: '/business' },
+      { label: 'Terms of service', to: '/terms' },
+      { label: 'Privacy policy', to: '/privacy' },
     ],
   },
 ]
@@ -77,11 +76,10 @@ export default function Footer() {
       </div>
       <div className="border-t border-stone-200">
         <div className="mx-auto flex max-w-7xl flex-col gap-2 px-4 py-5 text-xs text-stone-400 sm:flex-row sm:items-center sm:justify-between">
-          <p>© {new Date().getFullYear()} {APP.name}. A prototype — sample data only.</p>
+          <p>© {new Date().getFullYear()} {APP.name}. Made in Sussex, for the high street.</p>
           <p className="flex gap-4">
-            <span className="hover:text-stone-600">Privacy</span>
-            <span className="hover:text-stone-600">Terms</span>
-            <span className="hover:text-stone-600">Cookies</span>
+            <Link to="/privacy" className="hover:text-stone-600">Privacy</Link>
+            <Link to="/terms" className="hover:text-stone-600">Terms</Link>
           </p>
         </div>
       </div>

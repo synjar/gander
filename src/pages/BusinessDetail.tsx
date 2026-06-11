@@ -342,8 +342,12 @@ export default function BusinessDetail() {
                 <span className="font-medium text-stone-500">Admission may apply</span>
               </>
             )}
-            <span className="text-stone-300">·</span>
-            <span className="text-stone-600">{b.cuisine}</span>
+            {b.cuisine && (
+              <>
+                <span className="text-stone-300">·</span>
+                <span className="text-stone-600">{b.cuisine}</span>
+              </>
+            )}
             <span className="text-stone-300">·</span>
             <span className="flex items-center gap-1 text-stone-600">
               <MapPin size={14} className="text-stone-400" />
