@@ -62,7 +62,11 @@ interface Lead {
   town?: string
 }
 
-/** The cold-invite email — honest, personal, identifies the sender, easy opt-out. */
+// Founder signature shown on the outreach email.
+const CONTACT_NAME = process.env.OUTREACH_FROM_NAME ?? 'Jordan'
+const CONTACT_PHONE = process.env.OUTREACH_PHONE ?? '+44 7749 358560'
+
+/** The cold-invite email — auto-personalised per business, honest, easy opt-out. */
 function buildEmail(lead: Lead): { subject: string; html: string; text: string } {
   const name = lead.name
   const town = lead.town ?? 'your area'
@@ -70,38 +74,45 @@ function buildEmail(lead: Lead): { subject: string; html: string; text: string }
   const pageUrl = lead.slug ? `${APP_URL}/b/${lead.slug}` : `${APP_URL}/`
   const unsubUrl = `${APP_URL}/api/outreach-unsubscribe?e=${encodeURIComponent(lead.email)}&t=${unsubToken(lead.email)}`
 
-  const subject = `${name} is already on Gander — want to claim it (free)?`
+  const subject = `${name} is already on Gander`
 
   const text = `Hi,
 
-I'm building Gander, a local discovery app for ${town} — a friendly, UK-focused way for locals to find independent places like yours.
+I run Gander — a local discovery app for ${town} (a friendly, UK-focused TripAdvisor for independent spots).
 
-I've already added ${name} so people can find you. Your page is here: ${pageUrl}
+I've already added ${name} so locals can find you — here's your page: ${pageUrl}
 
-If you'd like to claim it (free), you can add photos, post a deal, take bookings and reply to reviews. We only earn a commission when we actually bring you a paying customer — nothing upfront.
+If you claim it (about 2 minutes, free), you can add your photos, menu, hours and a deal, take bookings, reply to reviews, and see real numbers: how many people viewed you, what they searched, and what your reviews say.
+
+On pricing I've tried to make it a no-brainer: free to list, your first 5 months are completely commission-free, and after that we only take 5% when we actually sell a voucher for you — nothing on bookings, no monthly fee, no setup cost. If we don't bring you customers, you pay nothing.
 
 Claim ${name}: ${claimUrl}
 
-Not for you? No problem — unsubscribe here and I won't email again: ${unsubUrl}
-
 Cheers,
-The Gander team
-${REPLY_TO}`
+${CONTACT_NAME} — Gander
+${REPLY_TO} · ${CONTACT_PHONE}
+
+Not for you? Unsubscribe and I won't email again: ${unsubUrl}`
 
   const html = `<!DOCTYPE html>
 <html><body style="font-family:-apple-system,Segoe UI,Roboto,sans-serif;max-width:560px;margin:0 auto;padding:28px 24px;color:#1c1917;line-height:1.55">
   <p style="margin:0 0 14px">Hi,</p>
-  <p style="margin:0 0 14px">I'm building <strong>Gander</strong>, a local discovery app for ${esc(town)} — a friendly, UK-focused way for locals to find independent places like yours.</p>
-  <p style="margin:0 0 14px">I've already added <strong>${esc(name)}</strong> so people can find you. Your page is here:<br>
+  <p style="margin:0 0 14px">I run <strong>Gander</strong> — a local discovery app for ${esc(town)} (a friendly, UK-focused TripAdvisor for independent spots).</p>
+  <p style="margin:0 0 14px">I've already added <strong>${esc(name)}</strong> so locals can find you — here's your page:<br>
     <a href="${pageUrl}" style="color:#ea5009">${esc(pageUrl)}</a></p>
-  <p style="margin:0 0 18px">If you'd like to claim it (free), you can add photos, post a deal, take bookings and reply to reviews. We only earn a commission when we actually bring you a paying customer — nothing upfront.</p>
+  <p style="margin:0 0 8px">If you claim it (about 2 minutes, free), you can:</p>
+  <ul style="margin:0 0 16px;padding-left:20px;color:#44403c">
+    <li>Add your photos, menu, hours and a deal</li>
+    <li>Take bookings and reply to reviews</li>
+    <li>See real numbers — who's viewing you, what they search, what your reviews say</li>
+  </ul>
+  <p style="margin:0 0 18px">On pricing I've tried to make it a no-brainer: <strong>free to list, your first 5 months are completely commission-free</strong>, and after that we only take <strong>5%</strong> when we actually sell a voucher for you — nothing on bookings, no monthly fee, no setup cost. If we don't bring you customers, you pay nothing.</p>
   <p style="margin:0 0 22px">
     <a href="${claimUrl}" style="display:inline-block;background:#f96a16;color:#fff;text-decoration:none;border-radius:100px;padding:12px 22px;font-weight:600">Claim ${esc(name)} — it's free</a>
   </p>
-  <p style="margin:0 0 14px;color:#57534e">Not for you? No problem — <a href="${unsubUrl}" style="color:#78716c">unsubscribe here</a> and I won't email again.</p>
-  <p style="margin:0;color:#57534e">Cheers,<br>The Gander team</p>
+  <p style="margin:0;color:#57534e">Cheers,<br><strong>${esc(CONTACT_NAME)}</strong> — Gander<br>${esc(REPLY_TO)} · ${esc(CONTACT_PHONE)}</p>
   <hr style="border:none;border-top:1px solid #e7e5e4;margin:24px 0 12px">
-  <p style="margin:0;color:#a8a29e;font-size:12px">You received this because <strong>${esc(name)}</strong> is a business publicly listed in ${esc(town)}, and we think Gander could send you customers. Gander, United Kingdom. To never hear from us again, <a href="${unsubUrl}" style="color:#a8a29e">unsubscribe</a>.</p>
+  <p style="margin:0;color:#a8a29e;font-size:12px">You received this because <strong>${esc(name)}</strong> is a business publicly listed in ${esc(town)}, and we think Gander could send you customers. Gander, United Kingdom. Not for you? <a href="${unsubUrl}" style="color:#a8a29e">Unsubscribe</a> and we won't email again.</p>
 </body></html>`
 
   return { subject, html, text }
