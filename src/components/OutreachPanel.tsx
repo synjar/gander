@@ -78,6 +78,7 @@ export default function OutreachPanel() {
   const [msg, setMsg] = useState('')
   const [error, setError] = useState('')
   const [composeLead, setComposeLead] = useState<Lead | null>(null)
+  const [armed, setArmed] = useState(false) // first Send click arms, second sends
 
   const call = useCallback(
     async (body: Record<string, unknown>) => {
@@ -147,8 +148,19 @@ export default function OutreachPanel() {
     }
   }
 
+  // Two-click confirm instead of window.confirm() — popup blockers silently
+  // cancel native dialogs, which made the send button look dead.
   async function sendBatch() {
-    if (!confirm(`Send up to ${batch} cold invites to ${town} businesses now? Each email includes a one-click unsubscribe.`)) return
+    if (emailable === 0) {
+      setError(`No leads in ${town} are ready to email — a lead needs an email address AND status "To contact". Work the rest by phone/WhatsApp.`)
+      return
+    }
+    if (!armed) {
+      setArmed(true)
+      setMsg(''); setError('')
+      return
+    }
+    setArmed(false)
     setBusy('send'); setError(''); setMsg('')
     try {
       const data = await call({ action: 'send', town, limit: batch })
@@ -399,18 +411,37 @@ export default function OutreachPanel() {
                   min={1}
                   max={20}
                   value={batch}
-                  onChange={(e) => setBatch(Math.min(20, Math.max(1, Number(e.target.value) || 1)))}
+                  onChange={(e) => { setBatch(Math.min(20, Math.max(1, Number(e.target.value) || 1))); setArmed(false) }}
                   className="w-20 rounded-lg border border-stone-200 px-3 py-2 text-sm outline-none focus:border-brand-400"
                 />
               </label>
               <button
                 onClick={sendBatch}
-                disabled={busy !== '' || emailable === 0}
-                className="flex items-center gap-1.5 rounded-full bg-stone-800 px-4 py-2 text-sm font-semibold text-white hover:bg-stone-900 disabled:opacity-40"
+                disabled={busy !== ''}
+                className={clsx(
+                  'flex items-center gap-1.5 rounded-full px-4 py-2 text-sm font-semibold text-white disabled:opacity-40',
+                  armed ? 'bg-rose-600 hover:bg-rose-700' : 'bg-stone-800 hover:bg-stone-900',
+                )}
               >
-                {busy === 'send' ? <Loader2 size={15} className="animate-spin" /> : <Send size={15} />} Send next batch
+                {busy === 'send' ? <Loader2 size={15} className="animate-spin" /> : <Send size={15} />}
+                {armed
+                  ? `Confirm — email ${Math.min(batch, emailable)} venue${Math.min(batch, emailable) === 1 ? '' : 's'} now`
+                  : 'Send next batch'}
               </button>
+              {armed && (
+                <button
+                  onClick={() => setArmed(false)}
+                  className="rounded-full border border-stone-200 px-4 py-2 text-sm font-semibold text-stone-600 hover:bg-stone-50"
+                >
+                  Cancel
+                </button>
+              )}
             </div>
+            {emailable === 0 && (
+              <p className="mt-2 text-xs text-stone-400">
+                0 ready: none of the <strong>{town}</strong> leads with status “To contact” have an email address. Most OSM venues don’t — work those by phone or WhatsApp instead.
+              </p>
+            )}
           </div>
         )}
       </div>
