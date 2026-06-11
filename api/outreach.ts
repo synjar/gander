@@ -253,6 +253,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       let sent = 0
       let skipped = 0
       const failures: string[] = []
+      let failureReason = '' // first Resend rejection, surfaced to the admin UI
 
       for (const lead of leads as Lead[]) {
         const email = lead.email.toLowerCase()
@@ -283,6 +284,14 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
             }),
           })
           if (!r.ok) {
+            if (!failureReason) {
+              try {
+                const body = (await r.json()) as { message?: string; name?: string }
+                failureReason = body.message || body.name || `HTTP ${r.status}`
+              } catch {
+                failureReason = `HTTP ${r.status}`
+              }
+            }
             failures.push(email)
             continue
           }
@@ -299,7 +308,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         await sleep(SEND_DELAY_MS)
       }
 
-      return res.status(200).json({ sent, skipped, failures: failures.length, failureEmails: failures })
+      return res.status(200).json({ sent, skipped, failures: failures.length, failureEmails: failures, failureReason })
     }
 
     return res.status(400).json({ error: `Unknown action: ${action}` })

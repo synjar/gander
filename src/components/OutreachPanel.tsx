@@ -164,7 +164,11 @@ export default function OutreachPanel() {
     setBusy('send'); setError(''); setMsg('')
     try {
       const data = await call({ action: 'send', town, limit: batch })
-      setMsg(`Sent ${data.sent ?? 0}, skipped ${data.skipped ?? 0} (suppressed), failed ${data.failures ?? 0}.`)
+      const failed = Number(data.failures ?? 0)
+      setMsg(`Sent ${data.sent ?? 0}, skipped ${data.skipped ?? 0} (suppressed)${failed ? '' : '.'}`)
+      if (failed > 0) {
+        setError(`${failed} failed${data.failureReason ? ` — Resend says: “${data.failureReason as string}”` : ''}`)
+      }
       await refresh()
     } catch (e) {
       setError(e instanceof Error ? e.message : 'Failed to send')
