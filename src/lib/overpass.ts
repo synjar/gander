@@ -289,14 +289,14 @@ function slugify(s: string): string {
 }
 
 /** Derive neighbourhood from OSM address tags */
-function neighbourhood(tags: Record<string, string>): string {
+function neighbourhood(tags: Record<string, string>, fallback = 'England'): string {
   return (
     tags['addr:suburb']   ||
     tags['addr:city']     ||
     tags['addr:town']     ||
     tags['addr:village']  ||
     tags['addr:hamlet']   ||
-    'West Sussex'
+    fallback
   )
 }
 
@@ -565,7 +565,7 @@ out center tags ${limit};
 
     const osmId  = `${el.type}/${el.id}`
     const slug   = `${slugify(name)}-osm-${el.id}`
-    const nb     = neighbourhood(t)
+    const nb     = neighbourhood(t, parent.cityName)
     const hours  = parseOpeningHours(t.opening_hours)
     const { short, long } = buildDescription(t, amenity, nb)
     const cuisine = t.cuisine ? capitalise(t.cuisine.replace(/_/g, ' ')) : undefined
@@ -694,7 +694,7 @@ export async function fetchOSMAttractions(
       (t.natural === 'beach' ? 'Beach' : 'Attraction')
 
     const slug   = `${slugify(name)}-osm-${el.id}`
-    const nb     = neighbourhood(t)
+    const nb     = neighbourhood(t, parent.cityName)
     const hours  = parseOpeningHours(t.opening_hours)
     const { short, long } = buildAttractionDescription(t, attractionType, name, nb)
     const tags   = parseAttractionTags(t)

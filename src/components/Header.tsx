@@ -8,7 +8,6 @@ import { useAuth } from '../auth/AuthContext'
 import AuthModal from './AuthModal'
 import { APP } from '../data'
 import { useCity } from '../city/CityContext'
-import { cities } from '../data/cities'
 
 function Logo() {
   return (
@@ -26,7 +25,7 @@ function Logo() {
 function SearchBar({ compact }: { compact?: boolean }) {
   const [q, setQ] = useState('')
   const navigate = useNavigate()
-  const { city, setCity } = useCity()
+  const { city, setCity, cities } = useCity()
 
   function submit(e: FormEvent) {
     e.preventDefault()

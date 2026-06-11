@@ -12,7 +12,7 @@ import {
 } from 'lucide-react'
 import clsx from 'clsx'
 import { categories } from '../data/categories'
-import { cities } from '../data/cities'
+import { useCity } from '../city/CityContext'
 import { useAuth } from '../auth/AuthContext'
 import * as db from '../lib/db'
 import type { CategoryId } from '../data/types'
@@ -66,6 +66,7 @@ const inputCls =
   'mt-1 w-full rounded-xl border border-stone-200 px-3.5 py-2.5 text-sm outline-none focus:border-brand-400 focus:ring-2 focus:ring-brand-100'
 
 function Step1({ f, set }: { f: FormState; set: (p: Partial<FormState>) => void }) {
+  const { cities } = useCity()
   const city = cities.find((c) => c.id === f.cityId)
 
   return (
@@ -263,6 +264,7 @@ function Step2({ f, set }: { f: FormState; set: (p: Partial<FormState>) => void 
 }
 
 function Step3({ f, set }: { f: FormState; set: (p: Partial<FormState>) => void }) {
+  const { cities } = useCity()
   return (
     <div className="space-y-4">
       <div className="rounded-xl bg-stone-50 p-4 text-sm text-stone-600">
@@ -320,6 +322,7 @@ function Step3({ f, set }: { f: FormState; set: (p: Partial<FormState>) => void 
 
 export default function BusinessOnboarding() {
   const { user, configured } = useAuth()
+  const { cities } = useCity()
   const [step, setStep] = useState(0)
   const [form, setFormRaw] = useState<FormState>(EMPTY)
   const [submitting, setSubmitting] = useState(false)

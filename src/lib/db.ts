@@ -1340,6 +1340,36 @@ export async function claimBusiness(businessId: string, userId: string): Promise
   if (error) throw new Error(error.message)
 }
 
+export interface ImportedCityStat {
+  cityId: string
+  cityName: string
+  venueCount: number
+  centerLat: number
+  centerLng: number
+  towns: string[]
+}
+
+/** Per-county venue stats — powers the dynamic city picker. Returns [] if the
+ *  RPC isn't installed yet (run additions.sql §9) so the app degrades to the
+ *  static city list. */
+export async function listImportedCityStats(): Promise<ImportedCityStat[]> {
+  if (!backendEnabled) return []
+  try {
+    const { data, error } = await client().rpc('imported_city_stats')
+    if (error) return []
+    return ((data ?? []) as Record<string, unknown>[]).map((r) => ({
+      cityId: r.city_id as string,
+      cityName: (r.city_name as string) || (r.city_id as string),
+      venueCount: Number(r.venue_count),
+      centerLat: Number(r.center_lat),
+      centerLng: Number(r.center_lng),
+      towns: (r.towns as string[] | null) ?? [],
+    }))
+  } catch {
+    return []
+  }
+}
+
 /** Returns the count of imported businesses for a city. */
 export async function countImportedBusinesses(cityId: string): Promise<number> {
   if (!backendEnabled) return 0

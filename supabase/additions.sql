@@ -185,3 +185,30 @@ create index if not exists imported_businesses_claimed_idx
   on public.imported_businesses (claimed) where claimed = true;
 create index if not exists imported_businesses_neighbourhood_idx
   on public.imported_businesses (neighbourhood);
+
+-- 9) Dynamic city picker -----------------------------------------------------
+-- Per-county stats over imported venues so the app can build its city list
+-- from the data instead of a hard-coded array: import a new county in the
+-- admin console and it appears in the picker automatically. SECURITY DEFINER
+-- + GROUP BY keeps it one cheap aggregate query.
+create or replace function public.imported_city_stats()
+returns table (
+  city_id text,
+  city_name text,
+  venue_count bigint,
+  center_lat double precision,
+  center_lng double precision,
+  towns text[]
+) language sql stable security definer set search_path = public as $$
+  select
+    city_id,
+    coalesce(max(city), city_id) as city_name,
+    count(*) as venue_count,
+    avg(lat) as center_lat,
+    avg(lng) as center_lng,
+    (array_agg(distinct neighbourhood) filter (where neighbourhood is not null and neighbourhood <> ''))[1:8] as towns
+  from public.imported_businesses
+  where status = 'active'
+  group by city_id;
+$$;
+grant execute on function public.imported_city_stats() to anon, authenticated;

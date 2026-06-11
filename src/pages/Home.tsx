@@ -6,7 +6,6 @@ import clsx from 'clsx'
 import type { Business } from '../data/types'
 import { businesses, businessesById } from '../data/businesses'
 import { categories } from '../data/categories'
-import { cities } from '../data/cities'
 import { seedFeed } from '../data/feed'
 import { useCity } from '../city/CityContext'
 import { useStore } from '../store/StoreContext'
@@ -38,7 +37,7 @@ const categoryTints: Record<string, string> = {
 }
 
 function CitySelect({ className }: { className?: string }) {
-  const { city, setCity } = useCity()
+  const { city, setCity, cities } = useCity()
   return (
     <select
       value={city.id}
