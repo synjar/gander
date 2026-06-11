@@ -394,6 +394,7 @@ function AttractionsPanel() {
   const { importBusinesses } = useStore()
 
   const [cityId, setCityId]             = useState('west-sussex')
+  const [customArea, setCustomArea]     = useState('')
   const [fetchState, setFetchState]     = useState<'idle' | 'fetching' | 'done' | 'importing'>('idle')
   const [fetchError, setFetchError]     = useState<string | null>(null)
   const [fetchProgress, setFetchProgress] = useState<{ done: number; total: number } | null>(null)
@@ -403,7 +404,11 @@ function AttractionsPanel() {
   const [importResult, setImportResult] = useState<{ inserted: number; updated: number; skippedClaimed: number } | null>(null)
   const [selectMode, setSelectMode]     = useState<'new' | 'all'>('new')
 
+  // The effective import key: a predefined area, or whatever the admin typed
+  const areaKey = cityId === 'custom' ? customArea.trim() : cityId
+
   const handleFetch = useCallback(async () => {
+    if (!areaKey) { setFetchError('Type an area name first (e.g. "Kent").'); return }
     setFetchState('fetching')
     setFetchError(null)
     setFetchProgress(null)
@@ -412,8 +417,8 @@ function AttractionsPanel() {
     setImportResult(null)
     try {
       const [{ venues: fetched, error }, existIds] = await Promise.all([
-        fetchOSMAttractions(cityId, 300, (done, total) => setFetchProgress({ done, total })),
-        db.getImportedOsmIds(resolveParentCity(cityId).cityId),
+        fetchOSMAttractions(areaKey, 300, (done, total) => setFetchProgress({ done, total })),
+        db.getImportedOsmIds(resolveParentCity(areaKey).cityId),
       ])
       setFetchProgress(null)
       if (error) { setFetchError(error); setFetchState('idle'); return }
@@ -426,7 +431,7 @@ function AttractionsPanel() {
       setFetchError(e instanceof Error ? e.message : String(e))
       setFetchState('idle')
     }
-  }, [cityId])
+  }, [areaKey])
 
   const handleImport = useCallback(async () => {
     const toImport = venues.filter((v) => selected.has(v.osmId))
@@ -435,7 +440,7 @@ function AttractionsPanel() {
     try {
       const result = await importBusinesses(toImport)
       setImportResult(result)
-      const existIds = await db.getImportedOsmIds(resolveParentCity(cityId).cityId)
+      const existIds = await db.getImportedOsmIds(resolveParentCity(areaKey).cityId)
       setExistingIds(existIds)
       setSelected(new Set())
     } catch (e) {
@@ -443,7 +448,7 @@ function AttractionsPanel() {
     } finally {
       setFetchState('done')
     }
-  }, [venues, selected, importBusinesses, cityId])
+  }, [venues, selected, importBusinesses, areaKey])
 
   const handleSelectModeChange = useCallback((mode: 'new' | 'all') => {
     setSelectMode(mode)
@@ -486,8 +491,26 @@ function AttractionsPanel() {
             {OSM_AREAS.map((c) => (
               <option key={c.id} value={c.id}>{c.name}</option>
             ))}
+            <option value="custom">Custom — any English county or town…</option>
           </select>
         </div>
+        {cityId === 'custom' && (
+          <div>
+            <label className="mb-1 block text-xs font-medium text-stone-600">Area name (as on OpenStreetMap)</label>
+            <input
+              value={customArea}
+              onChange={(e) => { setCustomArea(e.target.value); setVenues([]); setFetchState('idle') }}
+              placeholder='e.g. Kent, East Sussex, Brighton and Hove'
+              list="england-counties-attractions"
+              className="w-64 rounded-xl border border-stone-200 px-3 py-2 text-sm outline-none focus:border-teal-400"
+            />
+            <datalist id="england-counties-attractions">
+              {ENGLAND_COUNTIES.map((c) => (
+                <option key={c} value={c} />
+              ))}
+            </datalist>
+          </div>
+        )}
         <button
           onClick={handleFetch}
           disabled={fetchState === 'fetching' || fetchState === 'importing'}
