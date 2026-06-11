@@ -187,7 +187,7 @@ export default function Search() {
         )
     }
     return list
-  }, [q, category, neighbourhood, prices, minRating, sort, city, hiddenBusinesses, allBiz, distanceMap])
+  }, [q, category, neighbourhood, prices, minRating, sort, city, hiddenBusinesses, allBiz, distanceMap, verifiedOnly])
 
   const hasFilters = category !== 'all' || neighbourhood !== 'all' || prices.length > 0 || minRating > 0
 

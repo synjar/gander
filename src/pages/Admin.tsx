@@ -26,7 +26,7 @@ import { businesses } from '../data/businesses'
 import { cities } from '../data/cities'
 import { categories, categoryMap } from '../data/categories'
 import { useStore } from '../store/StoreContext'
-import { fetchOSMAttractions, fetchOSMVenues, resolveParentCity, type OsmVenue } from '../lib/overpass'
+import { ENGLAND_COUNTIES, fetchOSMAttractions, fetchOSMVenues, resolveParentCity, type OsmVenue } from '../lib/overpass'
 import { generateReviews } from '../lib/seedReviewGen'
 import * as db from '../lib/db'
 import { formatPrice, priceLevel } from '../lib/format'
@@ -109,6 +109,8 @@ function ImportPanel() {
   const { importBusinesses } = useStore()
 
   const [cityId, setCityId]               = useState('west-sussex')
+  const [customArea, setCustomArea]       = useState('')
+  const [limit, setLimit]                 = useState(1000)
   const [fetchState, setFetchState]       = useState<'idle' | 'fetching' | 'done' | 'importing'>('idle')
   const [fetchError, setFetchError]       = useState<string | null>(null)
   const [venues, setVenues]               = useState<OsmVenue[]>([])
@@ -117,7 +119,11 @@ function ImportPanel() {
   const [importResult, setImportResult]   = useState<{ inserted: number; updated: number; skippedClaimed: number } | null>(null)
   const [selectMode, setSelectMode]       = useState<'new' | 'all'>('new')
 
+  // The effective import key: a predefined area, or whatever the admin typed
+  const areaKey = cityId === 'custom' ? customArea.trim() : cityId
+
   const handleFetch = useCallback(async () => {
+    if (!areaKey) { setFetchError('Type an area name first (e.g. "Kent").'); return }
     setFetchState('fetching')
     setFetchError(null)
     setVenues([])
@@ -125,8 +131,8 @@ function ImportPanel() {
     setImportResult(null)
     try {
       const [{ venues: fetched, error }, existIds] = await Promise.all([
-        fetchOSMVenues(cityId, 500),
-        db.getImportedOsmIds(resolveParentCity(cityId).cityId),
+        fetchOSMVenues(areaKey, limit),
+        db.getImportedOsmIds(resolveParentCity(areaKey).cityId),
       ])
       if (error) { setFetchError(error); setFetchState('idle'); return }
       setVenues(fetched)
@@ -138,7 +144,7 @@ function ImportPanel() {
       setFetchError(e instanceof Error ? e.message : String(e))
       setFetchState('idle')
     }
-  }, [cityId])
+  }, [areaKey, limit])
 
   const handleImport = useCallback(async () => {
     const toImport = venues.filter((v) => selected.has(v.osmId))
@@ -147,7 +153,7 @@ function ImportPanel() {
     try {
       const result = await importBusinesses(toImport)
       setImportResult(result)
-      const existIds = await db.getImportedOsmIds(resolveParentCity(cityId).cityId)
+      const existIds = await db.getImportedOsmIds(resolveParentCity(areaKey).cityId)
       setExistingIds(existIds)
       setSelected(new Set())
     } catch (e) {
@@ -155,7 +161,7 @@ function ImportPanel() {
     } finally {
       setFetchState('done')
     }
-  }, [venues, selected, importBusinesses, cityId])
+  }, [venues, selected, importBusinesses, areaKey])
 
   // When select mode changes, recompute selection
   const handleSelectModeChange = useCallback((mode: 'new' | 'all') => {
@@ -203,6 +209,37 @@ function ImportPanel() {
             {OSM_AREAS.map((c) => (
               <option key={c.id} value={c.id}>{c.name}</option>
             ))}
+            <option value="custom">Custom — any English county or town…</option>
+          </select>
+        </div>
+        {cityId === 'custom' && (
+          <div>
+            <label className="mb-1 block text-xs font-medium text-stone-600">Area name (as on OpenStreetMap)</label>
+            <input
+              value={customArea}
+              onChange={(e) => { setCustomArea(e.target.value); setVenues([]); setFetchState('idle') }}
+              placeholder='e.g. Kent, East Sussex, Brighton and Hove'
+              list="england-counties"
+              className="w-64 rounded-xl border border-stone-200 px-3 py-2 text-sm outline-none focus:border-brand-400"
+            />
+            <datalist id="england-counties">
+              {ENGLAND_COUNTIES.map((c) => (
+                <option key={c} value={c} />
+              ))}
+            </datalist>
+          </div>
+        )}
+        <div>
+          <label className="mb-1 block text-xs font-medium text-stone-600">Max venues</label>
+          <select
+            value={limit}
+            onChange={(e) => setLimit(Number(e.target.value))}
+            className="rounded-xl border border-stone-200 px-3 py-2 text-sm outline-none focus:border-brand-400"
+          >
+            <option value={500}>500 (town)</option>
+            <option value={1000}>1,000</option>
+            <option value={2500}>2,500 (county)</option>
+            <option value={5000}>5,000 (large county)</option>
           </select>
         </div>
         <button
@@ -241,6 +278,13 @@ function ImportPanel() {
             <span className="text-amber-600">{importResult.skippedClaimed} claimed listings left untouched</span>
           )}
         </div>
+      )}
+      {importResult && cityId === 'custom' && (
+        <p className="mt-2 rounded-lg bg-sky-50 px-3 py-2 text-xs text-sky-700">
+          Imported under city id <code className="rounded bg-sky-100 px-1">{resolveParentCity(areaKey).cityId}</code>.
+          These venues are searchable now; to give them their own entry in the city picker, add{' '}
+          <strong>{resolveParentCity(areaKey).cityName}</strong> to <code className="rounded bg-sky-100 px-1">src/data/cities.ts</code>.
+        </p>
       )}
 
       {/* Preview table */}

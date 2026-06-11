@@ -172,3 +172,16 @@ grant execute on function public.bookings_count_on_date(text, date) to anon, aut
 -- Stamp when a venue was claimed so the payment API can give the owner a
 -- commission-free first month before the 12% platform fee kicks in.
 alter table public.imported_businesses add column if not exists claimed_at timestamptz;
+
+-- 8) Scale prep: indexes for England-wide imports ----------------------------
+-- The app filters imported venues by city/status on every load, the importer
+-- dedupes on osm_id, and outreach seeds by town. Btree indexes keep all of
+-- that fast as the table grows from hundreds of rows to six figures.
+create index if not exists imported_businesses_city_status_idx
+  on public.imported_businesses (city_id, status);
+create index if not exists imported_businesses_status_idx
+  on public.imported_businesses (status);
+create index if not exists imported_businesses_claimed_idx
+  on public.imported_businesses (claimed) where claimed = true;
+create index if not exists imported_businesses_neighbourhood_idx
+  on public.imported_businesses (neighbourhood);

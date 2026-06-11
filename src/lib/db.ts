@@ -1246,16 +1246,29 @@ export async function importOSMVenues(
   return { inserted, updated, skippedClaimed }
 }
 
-/** Fetch all active imported businesses, optionally filtered by cityId. */
+/**
+ * Fetch all active imported businesses, optionally filtered by cityId.
+ * Paginated in chunks because PostgREST silently caps a single response at
+ * 1,000 rows — without this, venues beyond the first 1,000 (alphabetically)
+ * would just vanish from the app as imports grow.
+ */
 export async function listImportedBusinesses(cityId?: string): Promise<Business[]> {
   if (!backendEnabled) return []
-  let q = client()
-    .from('imported_businesses')
-    .select('*')
-    .eq('status', 'active')
-  if (cityId) q = q.eq('city_id', cityId)
-  const { data } = await q.order('name')
-  return (data ?? []).map(rowToBusiness)
+  const PAGE = 1000
+  const all: Business[] = []
+  for (let from = 0; ; from += PAGE) {
+    let q = client()
+      .from('imported_businesses')
+      .select('*')
+      .eq('status', 'active')
+    if (cityId) q = q.eq('city_id', cityId)
+    const { data, error } = await q.order('id').range(from, from + PAGE - 1)
+    if (error) throw new Error(error.message)
+    const rows = data ?? []
+    all.push(...rows.map(rowToBusiness))
+    if (rows.length < PAGE) break
+  }
+  return all.sort((a, b) => a.name.localeCompare(b.name))
 }
 
 function rowToBusiness(r: Record<string, unknown>): Business {
@@ -1297,14 +1310,24 @@ function rowToBusiness(r: Record<string, unknown>): Business {
   }
 }
 
-/** Get OSM IDs that are already in imported_businesses (to detect dupes in preview). */
+/** Get OSM IDs that are already in imported_businesses (to detect dupes in preview).
+ *  Paginated past PostgREST's 1,000-row response cap. */
 export async function getImportedOsmIds(cityId: string): Promise<Set<string>> {
   if (!backendEnabled) return new Set()
-  const { data } = await client()
-    .from('imported_businesses')
-    .select('osm_id')
-    .eq('city_id', cityId)
-  return new Set((data ?? []).map((r) => r.osm_id as string))
+  const PAGE = 1000
+  const ids = new Set<string>()
+  for (let from = 0; ; from += PAGE) {
+    const { data } = await client()
+      .from('imported_businesses')
+      .select('osm_id')
+      .eq('city_id', cityId)
+      .order('osm_id')
+      .range(from, from + PAGE - 1)
+    const rows = data ?? []
+    for (const r of rows) ids.add(r.osm_id as string)
+    if (rows.length < PAGE) break
+  }
+  return ids
 }
 
 /** Mark an imported listing as claimed by a user. Stamps claimed_at so the

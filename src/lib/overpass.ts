@@ -391,6 +391,37 @@ const AREA_QUERIES: Record<string, string> = {
 }
 
 /**
+ * England's ceremonial counties — the unit we import at when rolling out
+ * nationally. Each is a single Overpass query of similar size to the West
+ * Sussex import that already works. Offered as suggestions for custom imports.
+ */
+export const ENGLAND_COUNTIES = [
+  'Bedfordshire', 'Berkshire', 'Bristol', 'Buckinghamshire', 'Cambridgeshire',
+  'Cheshire', 'Cornwall', 'Cumbria', 'Derbyshire', 'Devon', 'Dorset', 'Durham',
+  'East Riding of Yorkshire', 'East Sussex', 'Essex', 'Gloucestershire',
+  'Greater London', 'Greater Manchester', 'Hampshire', 'Herefordshire',
+  'Hertfordshire', 'Isle of Wight', 'Kent', 'Lancashire', 'Leicestershire',
+  'Lincolnshire', 'Merseyside', 'Norfolk', 'North Yorkshire', 'Northamptonshire',
+  'Northumberland', 'Nottinghamshire', 'Oxfordshire', 'Rutland', 'Shropshire',
+  'Somerset', 'South Yorkshire', 'Staffordshire', 'Suffolk', 'Surrey',
+  'Tyne and Wear', 'Warwickshire', 'West Midlands', 'West Sussex',
+  'West Yorkshire', 'Wiltshire', 'Worcestershire',
+] as const
+
+/**
+ * Resolve an import key to an Overpass area selector. Known keys use their
+ * hand-tuned query; anything else is treated as a literal OSM area name
+ * (county, district or town), matched across the administrative levels used
+ * in England (4 = nation/region, 5 = Greater London, 6 = county, 8 = district).
+ */
+function areaQueryFor(key: string): string | null {
+  if (AREA_QUERIES[key]) return AREA_QUERIES[key]
+  const name = key.replace(/["\\]/g, '').trim()
+  if (!name) return null
+  return `area["name"="${name}"]["boundary"="administrative"]["admin_level"~"^[4-8]$"]->.a`
+}
+
+/**
  * Some importable areas are towns that belong to a parent city in the app's
  * city model (e.g. Worthing → West Sussex). Imported venues are stored under
  * the parent so they show in the right city view; outreach still filters by
@@ -404,14 +435,22 @@ const AREA_PARENT: Record<string, { cityId: string; cityName: string }> = {
   arun:       { cityId: 'west-sussex', cityName: 'West Sussex' },
 }
 
-/** Resolve an import-area key to the city it should be stored under. */
+/** Resolve an import-area key to the city it should be stored under.
+ *  Custom areas (e.g. "East Sussex", "Kent") get a slugified city id —
+ *  add a matching entry to data/cities.ts to surface them in the city picker. */
 export function resolveParentCity(areaKey: string): { cityId: string; cityName: string } {
-  return (
-    AREA_PARENT[areaKey] ?? {
+  if (AREA_PARENT[areaKey]) return AREA_PARENT[areaKey]
+  if (AREA_QUERIES[areaKey]) {
+    return {
       cityId: areaKey,
       cityName: areaKey === 'west-sussex' ? 'West Sussex' : capitalise(areaKey),
     }
-  )
+  }
+  const name = areaKey.replace(/["\\]/g, '').trim()
+  return {
+    cityId: name.toLowerCase().replace(/\s+/g, '-'),
+    cityName: name,
+  }
 }
 
 // Note: no extra quotes around this — it gets interpolated as [amenity~"..."]
@@ -488,8 +527,8 @@ export async function fetchOSMVenues(
   cityId: string,
   limit = 400,
 ): Promise<{ venues: OsmVenue[]; error?: string }> {
-  const areaQuery = AREA_QUERIES[cityId]
-  if (!areaQuery) return { venues: [], error: `No Overpass query defined for city: ${cityId}` }
+  const areaQuery = areaQueryFor(cityId)
+  if (!areaQuery) return { venues: [], error: `Enter a valid area name (e.g. "Kent" or "East Sussex")` }
 
   const query = `
 [out:json][timeout:60];
@@ -591,8 +630,8 @@ export async function fetchOSMAttractions(
   limit = 300,
   onProgress?: (done: number, total: number) => void,
 ): Promise<{ venues: OsmVenue[]; error?: string }> {
-  const areaQuery = AREA_QUERIES[cityId]
-  if (!areaQuery) return { venues: [], error: `No Overpass query defined for city: ${cityId}` }
+  const areaQuery = areaQueryFor(cityId)
+  if (!areaQuery) return { venues: [], error: `Enter a valid area name (e.g. "Kent" or "East Sussex")` }
 
   // leisure=park intentionally excluded — matches thousands of pocket greens in cities
   // and reliably causes timeouts. Notable parks appear via tourism=attraction.
