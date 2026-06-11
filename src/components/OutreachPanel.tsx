@@ -442,6 +442,10 @@ export default function OutreachPanel() {
                 0 ready: none of the <strong>{town}</strong> leads with status “To contact” have an email address. Most OSM venues don’t — work those by phone or WhatsApp instead.
               </p>
             )}
+            {/* Result feedback again HERE — the top-of-panel copy is off-screen
+                when you're scrolled down at the send controls. */}
+            {msg && <p className="mt-2 text-sm font-medium text-emerald-600">{msg}</p>}
+            {error && <p className="mt-2 text-sm font-medium text-rose-600">{error}</p>}
           </div>
         )}
       </div>
