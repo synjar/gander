@@ -36,9 +36,8 @@ begin
   if p_referrer_id = p_referred_id then return; end if;
   if exists (select 1 from public.referrals where referred_id = p_referred_id) then return; end if;
   insert into public.referrals (referrer_id, referred_id) values (p_referrer_id, p_referred_id);
+  -- Referrer earns 100 XP. (No discount reward — referrals give XP only.)
   perform public.award_points(p_referrer_id, 100);
-  insert into public.referral_rewards (user_id, discount_pct, expires_at)
-  values (p_referrer_id, 15, now() + interval '90 days');
 end;
 $$;
 grant execute on function public.process_referral(uuid, uuid) to anon, authenticated;

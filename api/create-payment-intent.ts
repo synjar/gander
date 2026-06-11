@@ -7,22 +7,22 @@
  * rest transfers to the merchant.
  *
  * Commission model (computed server-side — never trust the client):
- *   - A merchant's first month after claiming their venue is commission-free.
- *   - After that, Gander takes 12% of each sale it makes for them.
+ *   - A merchant's first 5 months after claiming their venue are commission-free.
+ *   - After that, Gander takes 5% of each sale it makes for them.
  */
 import type { VercelRequest, VercelResponse } from '@vercel/node'
 import Stripe from 'stripe'
 import { createClient } from '@supabase/supabase-js'
 
-const BASE_FEE_RATE = 0.12 // 12% to Gander after the free first month
-const FREE_MONTH_MS = 30 * 24 * 60 * 60 * 1000
+const BASE_FEE_RATE = 0.05 // 5% to Gander after the free period
+const FREE_PERIOD_MS = 5 * 30 * 24 * 60 * 60 * 1000 // ~5 months commission-free
 
 const SUPABASE_URL = process.env.SUPABASE_URL ?? process.env.VITE_SUPABASE_URL
 const SERVICE_ROLE = process.env.SUPABASE_SERVICE_ROLE_KEY
 
 const stripe = new Stripe(process.env.STRIPE_SECRET_KEY ?? '')
 
-/** Resolve the platform fee rate for a business: 0 during its free first month. */
+/** Resolve the platform fee rate for a business: 0 during its free period. */
 async function feeRateFor(businessId?: string): Promise<number> {
   if (!businessId || !SUPABASE_URL || !SERVICE_ROLE) return BASE_FEE_RATE
   try {
@@ -35,7 +35,7 @@ async function feeRateFor(businessId?: string): Promise<number> {
       .eq('id', businessId)
       .maybeSingle()
     const claimedAt = data?.claimed_at ? new Date(data.claimed_at as string).getTime() : null
-    if (claimedAt && Date.now() < claimedAt + FREE_MONTH_MS) return 0
+    if (claimedAt && Date.now() < claimedAt + FREE_PERIOD_MS) return 0
   } catch {
     /* fall back to the base rate */
   }

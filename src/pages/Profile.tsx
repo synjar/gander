@@ -1,11 +1,10 @@
-import { useState, useEffect, useCallback, useRef } from 'react'
+import { useState, useEffect, useCallback } from 'react'
 import { Link } from 'react-router-dom'
 import {
   Award,
   CalendarCheck,
   CheckCheck,
   Copy,
-  Gift,
   Heart,
   LogOut,
   MapPin,
@@ -23,7 +22,6 @@ import { useStore } from '../store/StoreContext'
 import { useAuth } from '../auth/AuthContext'
 import { formatPrice } from '../lib/format'
 import { getReferralCode, getLevel, getLevelName, getLevelProgress } from '../lib/xp'
-import type { ReferralReward } from '../lib/db'
 import * as db from '../lib/db'
 import Avatar from '../components/Avatar'
 import BusinessCard from '../components/BusinessCard'
@@ -86,8 +84,6 @@ export default function Profile() {
   const [followingCount, setFollowingCount] = useState(0)
   const [checkInCount, setCheckInCount] = useState(0)
   const [copied, setCopied] = useState(false)
-  const [rewards, setRewards] = useState<ReferralReward[]>([])
-  const rewardsLoaded = useRef(false)
 
   const isRealUser = configured && !user.isGuest
 
@@ -98,10 +94,6 @@ export default function Profile() {
     db.getFollowerCount(uid).then((c) => setFollowerCount(c))
     db.getFollowingCount(uid).then((c) => setFollowingCount(c))
     db.getUserCheckInCount(uid).then((c) => setCheckInCount(c))
-    if (!rewardsLoaded.current) {
-      rewardsLoaded.current = true
-      db.getReferralRewards(uid).then(setRewards)
-    }
   }, [isRealUser, user.id])
 
   const myReviews = allReviews.filter((r) => r.authorId === (isRealUser ? user.id : 'me'))
@@ -226,9 +218,7 @@ export default function Profile() {
                   Refer a friend or business
                 </p>
                 <p className="mt-0.5 text-sm text-stone-500">
-                  Get{' '}
-                  <span className="font-medium text-brand-600">15% off your next order</span>
-                  {' '}+{' '}
+                  Earn{' '}
                   <span className="font-medium text-brand-600">100 XP</span>
                   {' '}every time someone signs up with your link.
                 </p>
@@ -248,31 +238,6 @@ export default function Profile() {
                 {copied ? <CheckCheck size={13} /> : <Copy size={13} />}
                 {copied ? 'Copied!' : 'Copy'}
               </button>
-            </div>
-          </div>
-        )}
-
-        {/* Earned rewards */}
-        {rewards.length > 0 && (
-          <div className="mt-3 rounded-2xl border border-emerald-200 bg-emerald-50 p-4">
-            <p className="flex items-center gap-1.5 font-semibold text-stone-900">
-              <Gift size={15} className="text-emerald-600" />
-              Your rewards
-            </p>
-            <div className="mt-2 space-y-2">
-              {rewards.map((r) => (
-                <div key={r.id} className="flex items-center justify-between rounded-xl border border-emerald-200 bg-white px-3 py-2">
-                  <div>
-                    <p className="text-sm font-semibold text-stone-900">{r.discountPct}% off your next order</p>
-                    <p className="text-xs text-stone-500">
-                      Expires {new Date(r.expiresAt).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' })}
-                    </p>
-                  </div>
-                  <span className="rounded-full bg-emerald-100 px-2.5 py-1 text-xs font-semibold text-emerald-700">
-                    Applied at checkout
-                  </span>
-                </div>
-              ))}
             </div>
           </div>
         )}

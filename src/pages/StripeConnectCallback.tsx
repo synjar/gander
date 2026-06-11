@@ -49,7 +49,7 @@ export default function StripeConnectCallback() {
           <h1 className="mt-4 font-display text-xl font-semibold text-stone-900">Stripe connected!</h1>
           <p className="mt-2 text-sm text-stone-500">
             You'll now automatically receive payouts when customers buy your deals.
-            Your first month is commission-free; after that Gander keeps a 12% fee — the rest goes straight to your bank.
+            Your first 5 months are commission-free; after that Gander keeps a 5% fee — the rest goes straight to your bank.
           </p>
           <Link
             to="/business/dashboard"

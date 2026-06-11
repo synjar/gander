@@ -156,7 +156,7 @@ export default function PaymentForm({ amount, businessId, onPaid, onCancel }: Pr
   const [clientSecret, setClientSecret] = useState<string | null>(null)
   const [fetchError, setFetchError] = useState<string | null>(null)
   const [stripeAccountId, setStripeAccountId] = useState<string | null>(null)
-  const [feeRate, setFeeRate] = useState(0.12)
+  const [feeRate, setFeeRate] = useState(0.05)
 
   useEffect(() => {
     if (!stripePromise) return
@@ -200,7 +200,7 @@ export default function PaymentForm({ amount, businessId, onPaid, onCancel }: Pr
           <span className="text-emerald-700">Merchant receives</span>
           <span className="font-semibold text-emerald-800">
             {formatPrice(merchantPayout)}{' '}
-            {feeRate === 0 ? '(commission-free first month)' : `(after ${Math.round(feeRate * 100)}% platform fee)`}
+            {feeRate === 0 ? '(commission-free)' : `(after ${Math.round(feeRate * 100)}% platform fee)`}
           </span>
         </div>
       )}

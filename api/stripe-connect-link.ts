@@ -21,10 +21,15 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   const base = origin.startsWith('http') ? origin : `https://${origin}`
 
   try {
-    // Create a new Express connected account
+    // Create a new Express connected account. Request card_payments alongside
+    // transfers — Stripe blocks transfers-only accounts without platform
+    // approval, and requesting both is the standard marketplace setup.
     const account = await stripe.accounts.create({
       type: 'express',
-      capabilities: { transfers: { requested: true } },
+      capabilities: {
+        card_payments: { requested: true },
+        transfers: { requested: true },
+      },
       settings: { payouts: { schedule: { interval: 'daily' } } },
     })
 
