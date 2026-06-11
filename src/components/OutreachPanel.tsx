@@ -152,9 +152,16 @@ export default function OutreachPanel() {
   }
 
   function exportCsv() {
-    const headers = ['Name', 'Email', 'Phone', 'Website', 'Address', 'Category', 'Status']
+    // Mail-merge-ready: includes Town + Listing URL so personalisation tokens
+    // (e.g. {{Town}}, {{ListingLink}}) have matching columns in your email tool.
+    const origin = (import.meta.env.VITE_APP_URL as string | undefined)?.replace(/\/$/, '') || window.location.origin
+    const headers = ['Name', 'Email', 'Phone', 'Website', 'Address', 'Town', 'Category', 'Status', 'ListingURL']
     const cell = (v: unknown) => `"${String(v ?? '').replace(/"/g, '""')}"`
-    const body = leads.map((l) => [l.name, l.email, l.phone, l.website, l.address, l.category, l.status].map(cell).join(','))
+    const body = leads.map((l) =>
+      [l.name, l.email, l.phone, l.website, l.address, l.town, l.category, l.status, l.slug ? `${origin}/b/${l.slug}` : '']
+        .map(cell)
+        .join(','),
+    )
     const csv = [headers.map(cell).join(','), ...body].join('\r\n')
     const url = URL.createObjectURL(new Blob([csv], { type: 'text/csv;charset=utf-8' }))
     const a = document.createElement('a')
