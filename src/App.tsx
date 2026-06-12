@@ -17,6 +17,7 @@ const BusinessLanding = lazy(() => import('./pages/BusinessLanding'))
 const MerchantDashboard = lazy(() => import('./pages/MerchantDashboard'))
 const BusinessOnboarding = lazy(() => import('./pages/BusinessOnboarding'))
 const BusinessFlyer = lazy(() => import('./pages/BusinessFlyer'))
+const SocialCard = lazy(() => import('./pages/SocialCard'))
 const Redeem = lazy(() => import('./pages/Redeem'))
 const StaffScanner = lazy(() => import('./pages/StaffScanner'))
 const StripeConnectCallback = lazy(() => import('./pages/StripeConnectCallback'))
@@ -41,6 +42,7 @@ const router = createBrowserRouter([
       { path: 'business', element: <BusinessLanding /> },
       { path: 'business/join', element: <BusinessOnboarding /> },
       { path: 'business/flyer', element: <BusinessFlyer /> },
+      { path: 'business/social', element: <SocialCard /> },
       { path: 'redeem/:code', element: <Redeem /> },
       { path: 'staff/scan', element: <StaffScanner /> },
       { path: 'business/stripe-connect', element: <StripeConnectCallback /> },
