@@ -107,10 +107,15 @@ export default function OutreachPanel() {
     }
   }, [call, secret, town])
 
+  // Reload whenever the town changes (debounced) so the list, the "ready"
+  // count and the send target can never refer to different towns.
   useEffect(() => {
-    if (secret) void refresh()
+    if (!secret) return
+    setArmed(false)
+    const t = window.setTimeout(() => void refresh(), 500)
+    return () => window.clearTimeout(t)
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [secret])
+  }, [secret, town])
 
   // Stats computed locally so status edits reflect instantly
   const stats = useMemo(() => {

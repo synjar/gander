@@ -196,7 +196,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     if (action === 'list' || action === 'stats') {
       const { town } = req.body as { town?: string }
       let q = supa.from('outreach_leads').select('id, name, email, phone, website, address, slug, category, town, status, sent_count, last_sent_at').order('name')
-      if (town) q = q.eq('town', town)
+      if (town) q = q.ilike('town', town.trim()) // ilike with no wildcard = case-insensitive match
       const { data: leads, error } = await q
       if (error) throw error
 
@@ -240,7 +240,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
       // Pull pending leads for the town that actually have an email address
       let q = supa.from('outreach_leads').select('id, name, email, slug, category, town').eq('status', 'pending').not('email', 'is', null).limit(batch)
-      if (town) q = q.eq('town', town)
+      if (town) q = q.ilike('town', town.trim()) // case-insensitive, same matching as list
       const { data: leads, error } = await q
       if (error) throw error
       if (!leads || leads.length === 0) return res.status(200).json({ sent: 0, skipped: 0, message: 'No pending leads' })
